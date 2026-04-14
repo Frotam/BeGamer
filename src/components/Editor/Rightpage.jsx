@@ -4,6 +4,7 @@ import { useFirebase } from '../../context/Firebase';
 import { PLAYING_ROUND_DURATION_MS, TOTAL_GAME_ROUNDS } from '../../context/roomActions';
 import { useVotingTimer } from '../voting/useVotingTimer';
 import { useToast } from '../../context/Toast';
+import { log } from 'firebase/firestore/pipelines';
 
 function Rightpage({ data }) {
   const {
@@ -92,7 +93,10 @@ function Rightpage({ data }) {
       showError(error.message);
     }
   };
-
+  const runecode = async () => {
+    console.log(data.codestate.code);
+ 
+};
   return (
     <div>
       <h3>Round {data?.currentRound || 1} / {TOTAL_GAME_ROUNDS}</h3>
@@ -110,6 +114,7 @@ function Rightpage({ data }) {
           <p>{data?.codeRunReason || "The code result is waiting for review."}</p>
           {isHost ? (
             <div>
+              
               <textarea
                 value={submittedOutput}
                 onChange={(event) => setSubmittedOutput(event.target.value)}
@@ -131,7 +136,11 @@ function Rightpage({ data }) {
       )}
 
       <h3>Chat</h3>
-
+      <h1>
+        <button onClick={runecode}>
+          Runcode 
+        </button>
+      </h1>
       <div>
         {chatMessages.length > 0
           ? chatMessages.map((chat) => (

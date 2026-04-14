@@ -75,7 +75,15 @@ export default function Index({data}) {
         <Leftpage data={data} taskData={taskData}/>
       </div>
       <div className="editor-main">
-        <Coder code={editorCode} setCode={setEditorCode} language={language} hiddenSuffix={hiddenMain} readOnly={!canEdit}></Coder>
+        <Coder
+          code={editorCode}
+          setCode={setEditorCode}
+          language={language}
+          hiddenSuffix={hiddenMain}
+          readOnly={!canEdit}
+          playerCursors={data?.codestate?.playersCursor || {}}
+          players={data?.players || {}}
+        />
       </div>
       <div className="editor-sidebar">
         <Rightpage data= {data}/>

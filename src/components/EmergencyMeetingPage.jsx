@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useFirebase } from "../context/Firebase";
 import Loader from "./Loader";
@@ -9,16 +9,24 @@ import SkyBackground from "./SkyBackground";
 
 function EmergencyMeetingPage({ data }) {
   const { roomid } = useParams();
-  const { currentUser, finalizeMeeting, voteInMeeting } = useFirebase();
+  const { currentUser, finalizeMeeting, voteInMeeting, sendmessage } = useFirebase();
   const { showError } = useToast();
   const [timeLeft, setTimeLeft] = useState(Math.ceil(MEETING_DURATION_MS / 1000));
   const [isMeetingOpen, setIsMeetingOpen] = useState(true);
   const [isFinishing, setIsFinishing] = useState(false);
   const [resolutionMessage, setResolutionMessage] = useState("");
+  const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   if (!currentUser || !data?.players) {
     return <Loader message="Loading meeting..." />;
   }
+
+  const chatMessages = useMemo(() => {
+    return Object.entries(data?.chat || {})
+      .map(([id, chat]) => ({ id, ...chat }))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }, [data?.chat]);
 
   const alivePlayers = Object.values(data.players).filter(
     (player) => player?.alive !== false
@@ -104,6 +112,22 @@ function EmergencyMeetingPage({ data }) {
     }
   };
 
+  const handleSendMessage = async (event) => {
+    event.preventDefault();
+
+    if (!message.trim() || !isAlive) return;
+
+    try {
+      setIsSending(true);
+      await sendmessage(roomid, message);
+      setMessage("");
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   if (isFinishing) {
     return <Loader message="Resolving meeting..." />;
   }
@@ -152,6 +176,82 @@ function EmergencyMeetingPage({ data }) {
           {!isMeetingOpen && !isHost && (
             <Loader message="Returning to the game..." />
           )}
+
+          <hr style={{ margin: "16px 0", opacity: 0.3 }} />
+
+          <h3 style={{ marginBottom: 8 }}>Discussion Chat</h3>
+          <div
+            style={{
+              maxHeight: 200,
+              overflow: "auto",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 6,
+              padding: 8,
+              marginBottom: 12,
+              background: "rgba(0,0,0,0.2)",
+            }}
+          >
+            {chatMessages.length > 0
+              ? chatMessages.map((chat) => (
+                  <div
+                    key={chat.id}
+                    style={{
+                      fontSize: 12,
+                      marginBottom: 6,
+                      lineHeight: 1.4,
+                      color: "#e0e0e0",
+                    }}
+                  >
+                    <strong
+                      style={{
+                        color:
+                          chat.uid === currentUser?.uid ? "#4caf50" : "#2f80ff",
+                      }}
+                    >
+                      {chat.uid === currentUser?.uid ? "You" : chat.name}:
+                    </strong>{" "}
+                    <span>{chat.text}</span>
+                  </div>
+                ))
+              : <p style={{ fontSize: 12, opacity: 0.6 }}>No messages yet.</p>}
+          </div>
+
+          <form onSubmit={handleSendMessage}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="text"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Send a message..."
+                disabled={!isAlive}
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  borderRadius: 4,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(0,0,0,0.3)",
+                  color: "#fff",
+                  fontSize: 12,
+                }}
+              />
+              <button
+                type="submit"
+                disabled={isSending || !message.trim() || !isAlive}
+                style={{
+                  padding: "8px 16px",
+                  background: !isAlive ? "#666" : "#2f80ff",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: !isAlive || isSending || !message.trim() ? "not-allowed" : "pointer",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {isSending ? "..." : "Send"}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </SkyBackground>

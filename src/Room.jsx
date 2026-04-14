@@ -240,7 +240,8 @@ function Room() {
     const isTerminalState =
       roomData.gameState === "crew_win" ||
       roomData.gameState === "imposter_win" ||
-      roomData.gameState === "insufficient";
+      roomData.gameState === "insufficient" ||
+      roomData.gameState === "draw";
 
     const gameEndedAt = roomData.gameEndedAt || null;
 
@@ -354,7 +355,9 @@ function Room() {
 
     roomData.gameState === "imposter_win" ||
 
-    roomData.gameState === "insufficient"
+    roomData.gameState === "insufficient" ||
+
+    roomData.gameState === "draw"
 
   ) {
 
@@ -417,6 +420,13 @@ function Room() {
                     0 0 16px rgba(255,77,109,0.25)
                   `
 
+                  : roomData.gameState === "draw"
+
+                  ? `
+                    0 0 6px rgba(124,92,255,0.45),
+                    0 0 16px rgba(124,92,255,0.25)
+                  `
+
                   : `
                     0 0 6px rgba(124,92,255,0.45),
                     0 0 16px rgba(124,92,255,0.25)
@@ -433,6 +443,10 @@ function Room() {
                 : roomData.gameState === "imposter_win"
 
                 ? "Imposter Wins"
+
+                : roomData.gameState === "draw"
+
+                ? "No One Wins"
 
                 : "Insufficient Players"
 
@@ -567,6 +581,16 @@ function Room() {
                           gap:"8px"
                         }}
                       >
+
+                        <span
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: "50%",
+                            background: player.color || "#888",
+                            display: "inline-block",
+                          }}
+                        />
 
                         {player.name}
 

@@ -1,4 +1,4 @@
-import { get, onDisconnect, onValue, push, ref, set, update } from "firebase/database";
+import { get, onDisconnect, onValue, push, ref, set, update, serverTimestamp } from "firebase/database";
 import { buildInitialRoomData } from "./payloads.js";
 import { getRoomRef, getRoomSnapshot, getSnippetRef } from "./refs.js";
 import {
@@ -65,6 +65,27 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
     return update(ref(database, `rooms/${roomId}/codestate`), {
       code: normalizedCode,
       updatedAt: Date.now(),
+    });
+  },
+
+  updatecursor: async (roomId, cursor = {}) => {
+    const user = getRequiredUser();
+    const snapshot = await getRoomSnapshot(database, roomId);
+    const room = snapshot.val();
+
+    ensureAlivePlayer(room, user);
+
+    if (room.gameState !== "playing") {
+      throw new Error("Cursor updates are only allowed during gameplay.");
+    }
+
+    const line = Number(cursor.line) || 1;
+    const column = Number(cursor.column) || 1;
+
+    return update(ref(database, `rooms/${roomId}/codestate/playersCursor/${user.uid}`), {
+      line: Math.max(1, line),
+      column: Math.max(1, column),
+      updatedAt: serverTimestamp(),
     });
   },
 

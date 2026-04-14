@@ -394,6 +394,7 @@ export const buildResetPlayers = (players = {}) => {
         alive: true,
         status: "alive",
         role: "Player",
+        color: player.color || player.color === "" ? player.color : undefined,
       },
     ])
   );

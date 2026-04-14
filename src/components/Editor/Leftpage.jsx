@@ -148,10 +148,7 @@ export default function Leftpage({ data, taskData }) {
         }
 
       </div>
-
-
-
-      {/* PLAYERS */}
+     
       <div>
 
         <h3 style={{ marginBottom: 8 }}>
@@ -202,11 +199,24 @@ export default function Leftpage({ data, taskData }) {
                                 ? "1px dashed #aaa"
                                 : "1px solid transparent",
 
-                            fontSize: 14
+                            fontSize: 14,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
 
                           }}
 
                         >
+
+                          <span
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              background: player.color || "#3cd439",
+                              display: "inline-block",
+                            }}
+                          />
 
                           {player.name}
 

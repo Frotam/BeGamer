@@ -18,6 +18,32 @@ import {
   shouldImposterWinByParity,
 } from "./utils.js";
 
+const PLAYER_COLORS = [
+  "#f97316",
+  "#14b8a6",
+  "#8b5cf6",
+  "#ec4899",
+  "#22c55e",
+  "#0ea5e9",
+  "#f59e0b",
+  "#ef4444",
+  "#0f766e",
+  "#7c3aed",
+];
+
+const pickPlayerColors = (playerIds) => {
+  const colors = [...PLAYER_COLORS];
+
+  for (let i = colors.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [colors[i], colors[j]] = [colors[j], colors[i]];
+  }
+
+  return Object.fromEntries(
+    playerIds.map((playerId, index) => [playerId, colors[index % colors.length]])
+  );
+};
+
 export const createGameActions = ({ database, getRequiredUser }) => ({
   startVoting: async (roomId) => {
     const user = getRequiredUser();
@@ -56,9 +82,24 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     });
   },
 
-  updatestate: (roomId) => {
+  updatestate: async (roomId) => {
+    const snapshot = await getRoomSnapshot(database, roomId);
+    const room = snapshot.val();
+    const playerIds = Object.keys(room.players || {});
+    const assignedColors = pickPlayerColors(playerIds);
+    const updatedPlayers = { ...(room.players || {}) };
+
+    playerIds.forEach((playerId) => {
+      updatedPlayers[playerId] = {
+        ...updatedPlayers[playerId],
+        color: assignedColors[playerId],
+      };
+    });
+
     return update(getRoomRef(database, roomId), {
       gameState: "playing",
+      players: updatedPlayers,
+      "codestate/playersCursor": {},
     });
   },
 
@@ -101,6 +142,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
 
     const randomIndex = Math.floor(Math.random() * playerIds.length);
     const imposterId = playerIds[randomIndex];
+    const assignedColors = pickPlayerColors(playerIds);
     const updatedPlayers = { ...(room.players || {}) };
     let codestateUpdates = {
       "codestate/tasks": {},
@@ -110,6 +152,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       updatedPlayers[playerId] = {
         ...updatedPlayers[playerId],
         role: playerId === imposterId ? "Imposter" : "Player",
+        color: assignedColors[playerId],
       };
     });
 
@@ -158,6 +201,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       winner,
       imposterId,
       players: updatedPlayers,
+      "codestate/playersCursor": {},
       ...codestateUpdates,
     });
   },
@@ -426,9 +470,10 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
 
     if (nextRound > TOTAL_GAME_ROUNDS) {
       return update(getRoomRef(database, roomId), {
-        gameState: "imposter_win",
-        winningTeam: "imposter",
-        resultMessage: "Imposter wins by sabotaging all 3 rounds.",
+        gameState: "draw",
+        winningTeam: null,
+        resultMessage:
+          "No one won: the crew could not complete the task and the imposter could not sabotage it.",
         gameEndedAt: serverTimestamp(),
         roundStartedAt: null,
         codeRunPending: false,
