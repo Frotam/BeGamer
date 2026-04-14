@@ -1,0 +1,112 @@
+.sky-screen {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+}
+
+.sky-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      #edf7ff 0%,
+      #dceeff 10%,
+      #b8deff 28%,
+      #79c3f5 58%,
+      #58a7ec 100%
+    );
+}
+
+.sky-background::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.42), transparent 24%),
+    radial-gradient(circle at 78% 14%, rgba(255, 255, 255, 0.24), transparent 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 36%);
+}
+
+.sky-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.08) 0%,
+    rgba(0, 0, 0, 0.04) 38%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+}
+
+.sky-glow {
+  position: absolute;
+  width: 26rem;
+  height: 26rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  filter: blur(34px);
+}
+
+.sky-glow-left {
+  top: -10rem;
+  left: -6rem;
+}
+
+.sky-glow-right {
+  top: -8rem;
+  right: -8rem;
+}
+
+.sky-cloud {
+
+  position: absolute;
+
+  left: -28rem;
+
+  max-width: none;
+
+  animation-name: sky-cloud-drift;
+
+  animation-timing-function: linear;
+
+  animation-iteration-count: infinite;
+
+  filter:
+    blur(1px)
+    drop-shadow(0 14px 18px rgba(58, 122, 189, 0.16));
+
+  transform: translate3d(0, 0, 0);
+
+  will-change: transform;
+
+}
+
+.sky-content {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes sky-cloud-drift {
+  from {
+    transform: translate3d(-10vw, 0, 0);
+  }
+
+  to {
+    transform: translate3d(calc(100vw + 34rem), 0, 0);
+  }
+}
+
+@media (max-width: 720px) {
+  .sky-glow {
+    width: 18rem;
+    height: 18rem;
+  }
+
+  .sky-cloud {
+    opacity: 0.72;
+  }
+}

@@ -1,0 +1,634 @@
+:root {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: #aa3bff;
+  --accent-bg: rgba(170, 59, 255, 0.1);
+  --accent-border: rgba(170, 59, 255, 0.5);
+  --social-bg: rgba(244, 243, 236, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
+  --heading: system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+  font: 18px/145% var(--sans);
+  letter-spacing: 0.18px;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #9ca3af;
+    --text-h: #f3f4f6;
+    --bg: #16171d;
+    --border: #2e303a;
+    --code-bg: #1f2028;
+    --accent: #c084fc;
+    --accent-bg: rgba(192, 132, 252, 0.15);
+    --accent-border: rgba(192, 132, 252, 0.5);
+    --social-bg: rgba(47, 48, 58, 0.5);
+    --shadow:
+      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  }
+
+  #social .button-icon {
+    filter: invert(1) brightness(2);
+  }
+}
+
+@font-face {
+  font-family: "GameFont";
+  src: url("./assets/Fonts/PressStart2P-vaV7.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Minecraft";
+  src: url("./assets/Fonts/Minecraftchmc-dBlX.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  text-align: center;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1,
+h2 {
+  font-family: var(--heading);
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+h1 {
+  font-size: 56px;
+  letter-spacing: -1.68px;
+  margin: 32px 0;
+}
+
+h2 {
+  font-size: 24px;
+  line-height: 118%;
+  letter-spacing: -0.24px;
+  margin: 0 0 8px;
+}
+
+p {
+  margin: 0;
+}
+
+code,
+.counter {
+  font-family: var(--mono);
+  display: inline-flex;
+  border-radius: 4px;
+  color: var(--text-h);
+}
+
+code {
+  font-size: 15px;
+  line-height: 135%;
+  padding: 4px 8px;
+  background: var(--code-bg);
+}
+
+.arcade {
+  font-family: "GameFont", sans-serif;
+}
+.mine{
+  font-family: "Minecraft", sans-serif;
+  /* font-size: 100px; */
+  word-spacing: 10%;
+}
+
+.home-container {
+  min-height: 100svh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 32px 20px;
+}
+
+.title {
+  margin: 0;
+  font-size: 48px;
+}
+
+.subtitle {
+  color: #24527d;
+  opacity: 0.78;
+  font-size: 1rem;
+}
+
+.join-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.game-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid rgba(48, 111, 168, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 30px rgba(74, 141, 196, 0.12);
+  font-size: 16px;
+  color: #133253;
+}
+
+.game-input::placeholder {
+  color: #6c91b3;
+}
+
+.game-input:focus {
+  outline: 2px solid rgba(73, 156, 230, 0.35);
+  outline-offset: 2px;
+}
+.game-btn{
+   
+  background:#f09429;
+
+  color:white;
+
+  border:none;
+
+  padding:12px 22px;
+
+  border-radius:6px;
+
+  font-weight:600;
+
+  cursor:pointer;
+
+  display:flex;
+
+  justify-content:center;
+
+  align-items:center;
+
+  transition:0.15s;
+}
+
+
+/* white layer behind button */
+ 
+
+
+/* press effect */
+.game-btn:active{
+
+  transform:translate(0px,0px);
+
+}
+
+.host-btn {
+  width: 220px;
+}
+
+.error {
+  color: #b42222;
+}
+
+.sky-panel {
+  width: min(100%, 32rem);
+  padding: 32px 28px;
+  border-radius: 32px;
+  background: transparent;
+  /* border: 1px solid rgba(255, 255, 255, 0.42); */
+  /* box-shadow: 0 28px 60px rgba(40, 109, 166, 0.18/); */
+  /* backdrop-filter: blur(2px); */
+}
+
+.home-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.sky-kicker {
+  display: inline-flex;
+  align-self: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  color: #35648b;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+}
+
+.pregame-layout {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+
+.pregame-panel {
+  width: min(100%, 44rem);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pregame-copy {
+  color: #28527a;
+}
+
+.player-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.player-chip {
+  padding: 12px 18px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #20476c;
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(65, 129, 181, 0.12);
+}
+
+.pregame-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.room-status-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-status-note {
+  color: #35648b;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.vote-timer {
+  align-self: center;
+  min-width: 5.5rem;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.56);
+  color: #2b5983;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.vote-topic-list {
+  display: grid;
+  gap: 14px;
+}
+
+.vote-topic{
+
+  display:flex;
+
+  font-family:"Minecraft", sans-serif;
+
+  font-size:xx-large;
+
+  justify-content:space-between;
+
+  align-items:center;
+
+  gap:16px;
+
+  width:100%;
+
+  padding:16px 18px;
+
+  border:none;
+
+  border-radius:20px;
+
+  background:rgba(0, 0, 0, 0.7);
+
+  text-align:left;
+
+  cursor:pointer;
+
+  box-shadow:0 14px 30px rgba(72,133,183,0.12);
+
+  transition:all 0.12s ease;
+
+  letter-spacing:1px;
+
+}
+.vote-topic span{
+
+  background-image:linear-gradient(
+    180deg,
+    #fff6c7 0%,
+    #ffd54a 45%,
+    #f5b700 60%,
+    #fff1a8 100%
+  );
+
+  -webkit-background-clip:text;
+
+  background-clip:text;
+
+  color:transparent;
+
+  text-shadow:
+    0 0 4px rgba(255,215,80,0.25);
+
+}
+/* hover */
+.vote-topic:hover:enabled{
+
+  transform:translateY(-1px);
+
+  /* background:rgba(0,0,0,0.85); */
+  background:#f5b700;
+  color: black;
+
+  box-shadow:0 18px 34px rgba(72,133,183,0.16);
+
+}.vote-topic:hover:enabled span{
+
+  color:black;
+
+  background:none;
+
+  text-shadow:none;
+
+}
+/* selected vote */
+.vote-topic.selected{
+
+  background:#ffd84d;
+
+}
+
+.vote-topic.selected span{
+
+  color:#5c4200;
+
+  background:none;
+
+  text-shadow:none;
+
+}
+
+
+/* disabled */
+.vote-topic:disabled{
+
+  cursor:not-allowed;
+
+  opacity:0.7;
+
+}
+.vote-status {
+  color: #1d4d74;
+  font-weight: 700;
+}
+
+.room-page h1,
+.voting-page h1 {
+  margin: 0;
+}
+
+.role-reveal-screen .sky-background {
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.1), transparent 38%),
+    linear-gradient(180deg, #07111f 0%, #10233b 46%, #050a13 100%);
+}
+
+.role-reveal-layout {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+
+.role-reveal {
+  position: relative;
+  width: min(100%, 38rem);
+  padding: 54px 34px;
+  border-radius: 36px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.38);
+  text-align: center;
+}
+
+.role-reveal.crew {
+  background: linear-gradient(180deg, rgba(17, 42, 75, 0.92), rgba(6, 16, 31, 0.96));
+}
+
+.role-reveal.imposter {
+  background: linear-gradient(180deg, rgba(83, 17, 35, 0.94), rgba(24, 6, 14, 0.98));
+}
+
+.role-reveal-kicker {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 18px;
+  letter-spacing: 0.18em;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.role-reveal-title {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: clamp(3rem, 8vw, 5.4rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.role-reveal.crew .role-reveal-title {
+  color: #6fd8ff;
+  text-shadow: 0 0 16px rgba(111, 216, 255, 0.48);
+}
+
+.role-reveal.imposter .role-reveal-title {
+  color: #ff6f88;
+  text-shadow: 0 0 18px rgba(255, 111, 136, 0.52);
+}
+
+.role-reveal-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 28rem;
+  margin: 22px auto 0;
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.role-reveal-glow {
+  position: absolute;
+  inset: auto 50% -6rem;
+  width: 18rem;
+  height: 18rem;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  filter: blur(28px);
+  opacity: 0.52;
+}
+
+.role-reveal.crew .role-reveal-glow {
+  background: rgba(87, 201, 255, 0.42);
+}
+
+.role-reveal.imposter .role-reveal-glow {
+  background: rgba(255, 88, 122, 0.36);
+}
+
+.toast-stack {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(22rem, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toast-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 14px 16px;
+  border-radius: 18px;
+  color: #183b5b;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 18px 40px rgba(29, 88, 134, 0.18);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+
+.toast-success {
+  border-left: 5px solid #35b36d;
+}
+
+.toast-error {
+  border-left: 5px solid #e45a72;
+}
+
+.toast-info {
+  border-left: 5px solid #4e9adf;
+}
+
+.toast-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.toast-title {
+  font-size: 0.95rem;
+  color: #133253;
+}
+
+.toast-message {
+  color: #4c6e8f;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.toast-close {
+  border: none;
+  background: transparent;
+  color: #6e8daa;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px;
+}
+
+@media (max-width: 1024px) {
+  h1 {
+    font-size: 36px;
+    margin: 20px 0;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 720px) {
+  .sky-panel {
+    padding: 24px 18px;
+    border-radius: 26px;
+  }
+
+  .title {
+    font-size: 38px;
+  }
+
+  .join-row {
+    flex-direction: column;
+  }
+
+  .host-btn,
+  .game-btn {
+    width: 100%;
+  }
+
+  .vote-topic {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .toast-stack {
+    top: 14px;
+    right: 14px;
+    left: 14px;
+    width: auto;
+  }
+
+  .role-reveal {
+    padding: 42px 22px;
+    border-radius: 28px;
+  }
+}

@@ -1,0 +1,48 @@
+.editor-layout {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.editor-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  overflow: auto;
+}
+
+.editor-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 100vh;
+}
+
+@media (min-width: 1440px) {
+  .editor-layout {
+    gap: 16px;
+  }
+
+  .editor-sidebar {
+    width: 240px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .editor-sidebar {
+    width: 160px;
+  }
+}
+
+@media (max-width: 900px) {
+  .editor-layout {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .editor-sidebar,
+  .editor-main {
+    width: 100%;
+    min-height: auto;
+  }
+}
