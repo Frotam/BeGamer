@@ -73,6 +73,26 @@ function Home() {
   };
 
   if (!authReady) {
+    if (authError) {
+      return (
+        <SkyBackground>
+          <div className="home-container">
+            <div className="sky-panel home-panel">
+              <h1 className="arcade title" style={{ color: "#ff6f6f" }}>
+                Firebase connection failed
+              </h1>
+              <p className="pregame-copy" style={{ color: "#fff" }}>
+                {authError}
+              </p>
+              <p className="pregame-copy" style={{ color: "#fff" }}>
+                Check your `.env` values and restart the app.
+              </p>
+            </div>
+          </div>
+        </SkyBackground>
+      );
+    }
+
     return <Loader message="Connecting..." />;
   }
 
