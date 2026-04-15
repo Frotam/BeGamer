@@ -107,7 +107,13 @@
         },
         "codestate": {
           ".read": "auth != null && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists()",
-          ".write": "auth != null && (root.child('rooms/' + $roomId + '/hostId').val() === auth.uid || (root.child('rooms/' + $roomId + '/players/' + auth.uid).exists() && root.child('rooms/' + $roomId + '/players/' + auth.uid + '/alive').val() !== false))"
+          ".write": "auth != null && (root.child('rooms/' + $roomId + '/hostId').val() === auth.uid || (root.child('rooms/' + $roomId + '/players/' + auth.uid).exists() && root.child('rooms/' + $roomId + '/players/' + auth.uid + '/alive').val() !== false))",
+          ".validate": "newData.hasChildren(['language', 'code', 'updatedAt', 'lockedRanges', 'playersCursor', 'tasks']) || !newData.exists()",
+          "tasks": {
+            "$taskId": {
+              ".write": "auth != null && (root.child('rooms/' + $roomId + '/hostId').val() === auth.uid || (root.child('rooms/' + $roomId + '/players/' + auth.uid).exists() && root.child('rooms/' + $roomId + '/players/' + auth.uid + '/alive').val() !== false))"
+            }
+          }
         }
       }
     }

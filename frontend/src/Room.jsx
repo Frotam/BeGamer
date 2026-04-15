@@ -45,6 +45,7 @@ function Room() {
     registerPresence,
     syncRoomState,
     resetRoomForReplay,
+    autoResetLobbyAfterGameEnd,
   } = useFirebase();
 
   const [roomData, setRoomData] = useState(null);
@@ -265,14 +266,14 @@ function Room() {
     }
 
     const timeout = setTimeout(() => {
-      resetRoomForReplay(roomid).catch(error => {
+      autoResetLobbyAfterGameEnd(roomid).catch(error => {
         console.error(
-          "Failed to reset room for replay:",
+          "Failed to auto reset lobby:",
           error
         );
         handledEndingRef.current = null;
       });
-    }, 6000);
+    }, 5000);
 
     return () => clearTimeout(timeout);
 
@@ -281,7 +282,7 @@ function Room() {
     roomData?.gameState,
     roomData?.gameEndedAt,
     roomData?.hostId,
-    resetRoomForReplay,
+    autoResetLobbyAfterGameEnd,
     roomid
   ]);
 

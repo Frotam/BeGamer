@@ -94,8 +94,83 @@ function Rightpage({ data }) {
     }
   };
   const runecode = async () => {
-    console.log(data.codestate.code);
- 
+
+  const code = data.codestate.code;
+
+  try {
+
+    const response = await fetch("http://localhost:5000/run-cpp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ code })
+    });
+
+    const result = await response.json();
+
+    if (result.success && result.output) {
+
+     const normalizeOutput = (value) => {
+
+  if (!value) return "";
+
+  return String(value)     // ensures string
+    .split(/[\n,]/)        // split by newline OR comma
+    .map(v => v.trim())
+    .filter(Boolean)
+    .join(",");
+};
+      const actualOutput = normalizeOutput(result.output);
+
+      const crewmateExpectedOutput =
+        data.codestate.tasks.player.expectedOutput;
+
+      const imposterExpectedOutput =
+        data.codestate.tasks.imposter.expectedOutput;
+
+      const crewmateNormalized =
+        normalizeOutput(crewmateExpectedOutput);
+
+      const imposterNormalized =
+        normalizeOutput(imposterExpectedOutput);
+
+      console.log("--- Code Execution Output Comparison ---");
+
+      console.log(
+        `Crewmate must be: ${crewmateNormalized} but got: ${actualOutput}`
+      );
+
+      console.log(
+        `Imposter must be: ${imposterNormalized} but got: ${actualOutput}`
+      );
+
+      const crewmateMatches =
+        actualOutput === crewmateNormalized;
+
+      const imposterMatches =
+        actualOutput === imposterNormalized;
+
+      console.log(
+        `Outputs are same: ${
+          crewmateMatches
+            ? "CREWMATE MATCH"
+            : imposterMatches
+            ? "IMPOSTER MATCH"
+            : "NO MATCH"
+        }`
+      );
+
+      console.log("--- End Comparison ---");
+
+    }
+
+  } catch (error) {
+
+    console.error("Server error:", error);
+
+  }
+
 };
   return (
     <div>

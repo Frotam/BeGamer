@@ -1,5 +1,5 @@
 import { get, onDisconnect, onValue, push, ref, set, update, serverTimestamp } from "firebase/database";
-import { buildInitialRoomData } from "./payloads.js";
+import { buildInitialRoomData, buildLobbyResetPayload } from "./payloads.js";
 import { getRoomRef, getRoomSnapshot, getSnippetRef } from "./refs.js";
 import {
   ensureAlivePlayer,
@@ -110,6 +110,29 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
       throw new Error(`Snippet code is empty for topic "${winner}".`);
     }
 
+    // Get tasks for BOTH player and imposter roles
+    const playerTaskConfig = getRoleTaskConfig(snippet.tasks || {}, "player");
+    const imposterTaskConfig = getRoleTaskConfig(snippet.tasks || {}, "imposter");
+    const playerTaskData = sanitizeRoleTaskConfig(playerTaskConfig);
+    const imposterTaskData = sanitizeRoleTaskConfig(imposterTaskConfig);
+    
+    // Structure tasks as { player: {...}, imposter: {...} }
+    const tasksToSave = {};
+    
+    if (playerTaskData) {
+      tasksToSave["player"] = {
+        expectedOutput: playerTaskData.expectedOutput,
+        instructions: playerTaskData.instructions,
+      };
+    }
+    
+    if (imposterTaskData) {
+      tasksToSave["imposter"] = {
+        expectedOutput: imposterTaskData.expectedOutput,
+        instructions: imposterTaskData.instructions,
+      };
+    }
+    
     if (!hasUsableCode(existingCode)) {
       await set(ref(database, `rooms/${roomId}/codestate`), {
         language: snippet.language || "cpp",
@@ -117,18 +140,25 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
         updatedAt: Date.now(),
         lockedRanges: normalizeLockedRanges(snippet.lockedRanges),
         playersCursor: {},
-        tasks: {},
+        tasks: tasksToSave,
+      });
+    } else {
+      // Always update tasks even if code already exists
+      await update(ref(database, `rooms/${roomId}/codestate`), {
+        tasks: tasksToSave,
+        updatedAt: Date.now(),
       });
     }
 
-    const taskConfig = getRoleTaskConfig(snippet.tasks || {}, currentPlayerRole);
+    // Return task data for current player's role only
+    const currentTaskData = currentPlayerRole === "imposter" ? imposterTaskData : playerTaskData;
 
     return {
       language: snippet.language || "javascript",
       code: hasUsableCode(existingCode) ? existingCode : normalizedSnippetCode,
       templateCode: normalizedSnippetCode,
       lockedRanges: normalizeLockedRanges(snippet.lockedRanges),
-      taskData: sanitizeRoleTaskConfig(taskConfig),
+      taskData: currentTaskData,
     };
   },
 
@@ -178,5 +208,30 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
     return onValue(getRoomRef(database, roomId), (snapshot) => {
       callback(snapshot.val());
     });
+  },
+
+  autoResetLobbyAfterGameEnd: async (roomId) => {
+    const roomSnapshot = await getRoomSnapshot(database, roomId);
+    const room = roomSnapshot.val();
+    
+    // Check if game has ended (crew_win, imposter_win, insufficient, or draw)
+    const gameEndedStates = ["crew_win", "imposter_win", "insufficient", "draw"];
+    
+    if (gameEndedStates.includes(room?.gameState)) {
+      // Wait 5 seconds, then reset to lobby
+      return new Promise((resolve) => {
+        setTimeout(async () => {
+          try {
+            // Use buildLobbyResetPayload to properly reset everything
+            const resetPayload = buildLobbyResetPayload(room);
+            await update(getRoomRef(database, roomId), resetPayload);
+            resolve();
+          } catch (error) {
+            console.error("Auto reset failed:", error);
+            resolve();
+          }
+        }, 5000); // 5 seconds delay
+      });
+    }
   },
 });

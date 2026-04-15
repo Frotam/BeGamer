@@ -72,6 +72,7 @@ export const sanitizeRoleTaskConfig = (taskConfig) => {
   return {
     type: getRoleKey(taskConfig.type || taskConfig.role),
     instructions,
+    expectedOutput: taskConfig.expectedOutput || null,
   };
 };
 
