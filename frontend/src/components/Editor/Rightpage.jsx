@@ -20,8 +20,10 @@ function Rightpage({ data }) {
   const [isSending, setIsSending] = useState(false);
   const [isResolvingCode, setIsResolvingCode] = useState(false);
   const [submittedOutput, setSubmittedOutput] = useState("");
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [timeLeft, setTimeLeft] = useState(Math.ceil(PLAYING_ROUND_DURATION_MS / 1000));
   const autoRunTriggeredRef = useRef(false);
+  const chatContainerRef = useRef(null);
   const isAlive = currentUser?.uid ? data?.players?.[currentUser.uid]?.alive !== false : false;
   const isHost = data?.hostId === currentUser?.uid;
   const isCodeReviewPending = Boolean(data?.codeRunPending);
@@ -32,6 +34,26 @@ function Rightpage({ data }) {
       .map(([id, chat]) => ({ id, ...chat }))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [data?.chat]);
+
+  const handleScroll = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+
+    const threshold = 20;
+    const atBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+
+    setIsAtBottom(atBottom);
+  };
+
+  useEffect(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+
+    if (isAtBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [chatMessages, isAtBottom]);
 
   useVotingTimer({
     isActive:
@@ -96,15 +118,17 @@ function Rightpage({ data }) {
   const runecode = async () => {
 
   const code = data.codestate.code;
-
+  const language=data.codestate.language;
+  console.log(language);
+    
   try {
 
-    const response = await fetch("http://localhost:5000/run-cpp", {
+    const response = await fetch("http://localhost:5000/run-code", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code,language })
     });
 
     const result = await response.json();
@@ -172,80 +196,121 @@ function Rightpage({ data }) {
   }
 
 };
+
   return (
-    <div>
-      <h3>Round {data?.currentRound || 1} / {TOTAL_GAME_ROUNDS}</h3>
-      <h3>Round timer</h3>
-      <p>{timeLeft}s</p>
-      <button
-        onClick={handleEmergencyMeeting}
-        disabled={!isAlive || data?.gameState !== "playing" || isCodeReviewPending}
-      >
-        Emergency
-      </button>
-
-      {isCodeReviewPending && (
-        <div>
-          <p>{data?.codeRunReason || "The code result is waiting for review."}</p>
-          {isHost ? (
-            <div>
-              
-              <textarea
-                value={submittedOutput}
-                onChange={(event) => setSubmittedOutput(event.target.value)}
-                placeholder="Paste the program output here"
-                disabled={isResolvingCode}
-                rows={6}
-              />
-              <button
-                onClick={handleResolveCode}
-                disabled={isResolvingCode || !submittedOutput.trim()}
-              >
-                Evaluate output
-              </button>
-            </div>
-          ) : (
-            <p>Waiting for the host to review the code result.</p>
-          )}
+    <div className="rightpage-layout">
+      <div className="rightpage-panel">
+        <div className="rightpage-header">
+          <div>
+            <p className="rightpage-label">Round</p>
+            <h2>Round {data?.currentRound || 1} / {TOTAL_GAME_ROUNDS}</h2>
+          </div>
+          <div className="rightpage-timer">
+            <p className="rightpage-label">Time left</p>
+            <span>{timeLeft}s</span>
+          </div>
         </div>
-      )}
 
-      <h3>Chat</h3>
-      <h1>
-        <button onClick={runecode}>
-          Runcode 
-        </button>
-      </h1>
-      <div>
-        {chatMessages.length > 0
-          ? chatMessages.map((chat) => (
-              <div key={chat.id}>
-                <strong>
-                  {chat.uid === currentUser?.uid ? "You" : chat.name}:
-                </strong>{" "}
-                <span>{chat.text}</span>
+        <div className="rightpage-actions">
+          <button
+            className="game-btn emergency-btn"
+            onClick={handleEmergencyMeeting}
+            disabled={!isAlive || data?.gameState !== "playing" || isCodeReviewPending}
+          >
+            Emergency Meeting
+          </button>
+          <button
+            className="game-btn primary-btn"
+            onClick={runecode}
+            disabled={!isAlive || data?.gameState !== "playing" || isCodeReviewPending}
+          >
+            Run Code
+          </button>
+        </div>
+
+        {isCodeReviewPending && (
+          <div className="review-panel">
+            <p className="review-text">{data?.codeRunReason || "The code result is waiting for review."}</p>
+            {isHost ? (
+              <div className="review-actions">
+                <textarea
+                  value={submittedOutput}
+                  onChange={(event) => setSubmittedOutput(event.target.value)}
+                  placeholder="Paste the program output here"
+                  disabled={isResolvingCode}
+                  rows={5}
+                  className="review-input"
+                />
+                <button
+                  className="game-btn primary-btn"
+                  onClick={handleResolveCode}
+                  disabled={isResolvingCode || !submittedOutput.trim()}
+                >
+                  Evaluate Output
+                </button>
               </div>
-            ))
-          : <p>No messages yet.</p>}
+            ) : (
+              <p className="review-text">Waiting for the host to review the code result.</p>
+            )}
+          </div>
+        )}
+
+        <div className="chat-panel">
+          <div className="chat-panel-header">
+            <div>
+              <p className="rightpage-label">Team Chat</p>
+              <h3>Discussion</h3>
+            </div>
+          </div>
+
+          <div
+            className="chat-messages rightpage-chat-messages"
+            ref={chatContainerRef}
+            onScroll={handleScroll}
+          >
+            {chatMessages.length > 0 ? (
+              chatMessages.map((chat) => (
+                <div key={chat.id} className="chat-message">
+                  <strong
+                    className="chat-sender"
+                    style={{
+                      color:
+                        chat.uid === currentUser?.uid
+                          ? "#4caf50"
+                          : "#2f80ff",
+                    }}
+                  >
+                    {chat.uid === currentUser?.uid ? "You" : chat.name}:
+                  </strong>{" "}
+                  <span>{chat.text}</span>
+                </div>
+              ))
+            ) : (
+              <p className="no-messages">No messages yet.</p>
+            )}
+          </div>
+
+          <form onSubmit={handleSubmit} className="chat-form">
+            <input
+              type="text"
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder="Send a message..."
+              disabled={!isAlive || isCodeReviewPending}
+              className="chat-input"
+            />
+            <button
+              type="submit"
+              disabled={isSending || !message.trim() || !isAlive || isCodeReviewPending}
+              className="chat-send-btn"
+            >
+              {isSending ? "..." : "Send"}
+            </button>
+          </form>
+        </div>
+
+        {!isAlive && <p className="spectator-note">You are spectating. Chat and emergency meeting are disabled.</p>}
       </div>
-
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          placeholder="Type a message"
-          disabled={!isAlive || isCodeReviewPending}
-        />
-        <button
-          type="submit"
-          disabled={isSending || !message.trim() || !isAlive || isCodeReviewPending}
-        >
-          {isSending ? "Sending..." : "Send"}
-        </button>
-      </form>
-
-      {!isAlive && <p>You are spectating. Chat and emergency meeting are disabled.</p>}
     </div>
   )
 }

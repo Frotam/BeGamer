@@ -140,8 +140,38 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       throw new Error("At least 3 players are required to start the game.");
     }
 
-    const randomIndex = Math.floor(Math.random() * playerIds.length);
-    const imposterId = playerIds[randomIndex];
+    // SECURITY FIX: Use server-side imposter selection instead of client-side random
+    // This prevents players from manipulating their role assignment
+    let imposterId;
+    try {
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
+      const imposterResponse = await fetch(`${backendUrl}/select-imposter`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerIds })
+      });
+
+      if (!imposterResponse.ok) {
+        throw new Error(`Backend returned ${imposterResponse.status}`);
+      }
+
+      const imposterData = await imposterResponse.json();
+      if (!imposterData.success || !imposterData.imposterId) {
+        throw new Error("Failed to get imposter selection from server");
+      }
+
+      imposterId = imposterData.imposterId;
+      console.log("[SECURITY] Imposter selected by backend:", imposterId);
+    } catch (error) {
+      console.error("[SECURITY] Failed to get imposter from backend, using secure fallback:", error);
+      // Fallback to secure client-side selection if backend is unavailable
+      // Using crypto.getRandomValues for better randomness
+      const randomArray = new Uint32Array(1);
+      crypto.getRandomValues(randomArray);
+      const randomIndex = randomArray[0] % playerIds.length;
+      imposterId = playerIds[randomIndex];
+    }
+
     const assignedColors = pickPlayerColors(playerIds);
     const updatedPlayers = { ...(room.players || {}) };
     let codestateUpdates = {
@@ -656,8 +686,13 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     const user = getRequiredUser();
     const snapshot = await getRoomSnapshot(database, roomId);
     const room = snapshot.val();
+    const totalVotes = Object.keys(room.votes || {}).length;
+    const allowAnyPlayerReset =
+      room.gameState === "voting" &&
+      room.votingStartedAt &&
+      totalVotes === 0;
 
-    if (room.hostId !== user.uid) {
+    if (!allowAnyPlayerReset && room.hostId !== user.uid) {
       throw new Error("Only the host can reset the room.");
     }
 

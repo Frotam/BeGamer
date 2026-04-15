@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useFirebase } from "../context/Firebase";
 import Loader from "./Loader";
@@ -17,16 +17,39 @@ function EmergencyMeetingPage({ data }) {
   const [resolutionMessage, setResolutionMessage] = useState("");
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
-  if (!currentUser || !data?.players) {
-    return <Loader message="Loading meeting..." />;
-  }
+  const chatContainerRef = useRef(null);
 
   const chatMessages = useMemo(() => {
     return Object.entries(data?.chat || {})
       .map(([id, chat]) => ({ id, ...chat }))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [data?.chat]);
+
+  const handleScroll = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+
+    const threshold = 20;
+    const atBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+
+    setIsAtBottom(atBottom);
+  };
+
+  useEffect(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+
+    if (isAtBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [chatMessages, isAtBottom]);
+
+  if (!currentUser || !data?.players) {
+    return <Loader message="Loading meeting..." />;
+  }
 
   const alivePlayers = Object.values(data.players).filter(
     (player) => player?.alive !== false
@@ -134,124 +157,103 @@ function EmergencyMeetingPage({ data }) {
 
   return (
     <SkyBackground>
-      <div className="pregame-layout">
-        <div className="sky-panel pregame-panel voting-page">
-          <span className="sky-kicker arcade">Emergency Meeting</span>
-          <h1 className="arcade">Discuss and vote</h1>
-          <p className="pregame-copy">
-            {data.meetingReason || "Discuss carefully and vote out the saboteur."}
-          </p>
-          <div className="vote-timer">{timeLeft}s</div>
-
-          {!isAlive && (
-            <p className="pregame-copy">You are spectating this meeting.</p>
-          )}
-
-          <div className="vote-topic-list">
-            {alivePlayers.map((player) => (
-              <button
-                key={player.uid}
-                className={`vote-topic ${currentVote === player.uid ? "selected" : ""}`.trim()}
-                onClick={() => handleVote(player.uid)}
-                disabled={!isAlive || !isMeetingOpen}
-              >
-                <span>Vote {player.name}</span>
-                <span>{currentVote === player.uid ? "Your vote" : "Tap to choose"}</span>
-              </button>
-            ))}
-
-            <button
-              className={`vote-topic ${currentVote === "skip" ? "selected" : ""}`.trim()}
-              onClick={() => handleVote("skip")}
-              disabled={!isAlive || !isMeetingOpen}
-            >
-              <span>Skip vote</span>
-              <span>{currentVote === "skip" ? "Your vote" : "Stay neutral"}</span>
-            </button>
+      <div className="emergency-meeting-layout">
+        <div className="emergency-meeting-container">
+          <div className="emergency-header">
+            <span className="sky-kicker arcade">Emergency Meeting</span>
+            <h1 className="arcade">Discuss and vote</h1>
+            <p className="emergency-reason">
+              {data.meetingReason || "Discuss carefully and vote out the saboteur."}
+            </p>
+            {!isAlive && (
+              <p className="spectating-notice">You are spectating this meeting.</p>
+            )}
           </div>
 
-          <p className="vote-status">Total votes: {totalVotes}</p>
+          <div className="emergency-content">
+            <div className="voting-section">
+              <div className="vote-timer">{timeLeft}s</div>
 
-          {!isMeetingOpen && <p className="pregame-copy">{resolutionMessage}</p>}
-          {!isMeetingOpen && !isHost && (
-            <Loader message="Returning to the game..." />
-          )}
+              <div className="vote-topic-list emergency-vote-list">
+                {alivePlayers.map((player) => (
+                  <button
+                    key={player.uid}
+                    className={`vote-topic ${currentVote === player.uid ? "selected" : ""}`.trim()}
+                    onClick={() => handleVote(player.uid)}
+                    disabled={!isAlive || !isMeetingOpen}
+                  >
+                    <span>Vote {player.name}</span>
+                    <span>{currentVote === player.uid ? "Your vote" : "Tap to choose"}</span>
+                  </button>
+                ))}
 
-          <hr style={{ margin: "16px 0", opacity: 0.3 }} />
+                <button
+                  className={`vote-topic ${currentVote === "skip" ? "selected" : ""}`.trim()}
+                  onClick={() => handleVote("skip")}
+                  disabled={!isAlive || !isMeetingOpen}
+                >
+                  <span>Skip vote</span>
+                  <span>{currentVote === "skip" ? "Your vote" : "Stay neutral"}</span>
+                </button>
+              </div>
 
-          <h3 style={{ marginBottom: 8 }}>Discussion Chat</h3>
-          <div
+              <p className="vote-status">Total votes: {totalVotes}</p>
+
+              {!isMeetingOpen && <p className="resolution-message">{resolutionMessage}</p>}
+              {!isMeetingOpen && !isHost && (
+                <Loader message="Returning to the game..." />
+              )}
+            </div>
+
+            <div className="chat-section">
+  <h3 className="chat-header">Discussion Chat</h3>
+
+  <div
+    className="chat-messages"
+    ref={chatContainerRef}
+    onScroll={handleScroll}
+  >
+    {chatMessages.length > 0 ? (
+      chatMessages.map((chat) => (
+        <div key={chat.id} className="chat-message">
+          <strong
+            className="chat-sender"
             style={{
-              maxHeight: 200,
-              overflow: "auto",
-              border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 6,
-              padding: 8,
-              marginBottom: 12,
-              background: "rgba(0,0,0,0.2)",
+              color:
+                chat.uid === currentUser?.uid
+                  ? "#4caf50"
+                  : "#2f80ff",
             }}
           >
-            {chatMessages.length > 0
-              ? chatMessages.map((chat) => (
-                  <div
-                    key={chat.id}
-                    style={{
-                      fontSize: 12,
-                      marginBottom: 6,
-                      lineHeight: 1.4,
-                      color: "#e0e0e0",
-                    }}
-                  >
-                    <strong
-                      style={{
-                        color:
-                          chat.uid === currentUser?.uid ? "#4caf50" : "#2f80ff",
-                      }}
-                    >
-                      {chat.uid === currentUser?.uid ? "You" : chat.name}:
-                    </strong>{" "}
-                    <span>{chat.text}</span>
-                  </div>
-                ))
-              : <p style={{ fontSize: 12, opacity: 0.6 }}>No messages yet.</p>}
-          </div>
+            {chat.uid === currentUser?.uid ? "You" : chat.name}:
+          </strong>{" "}
+          <span>{chat.text}</span>
+        </div>
+      ))
+    ) : (
+      <p className="no-messages">No messages yet.</p>
+    )}
+  </div>
 
-          <form onSubmit={handleSendMessage}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                type="text"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder="Send a message..."
-                disabled={!isAlive}
-                style={{
-                  flex: 1,
-                  padding: "8px 12px",
-                  borderRadius: 4,
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(0,0,0,0.3)",
-                  color: "#fff",
-                  fontSize: 12,
-                }}
-              />
-              <button
-                type="submit"
-                disabled={isSending || !message.trim() || !isAlive}
-                style={{
-                  padding: "8px 16px",
-                  background: !isAlive ? "#666" : "#2f80ff",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: !isAlive || isSending || !message.trim() ? "not-allowed" : "pointer",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                {isSending ? "..." : "Send"}
-              </button>
-            </div>
-          </form>
+  <form onSubmit={handleSendMessage} className="chat-form">
+    <input
+      type="text"
+      value={message}
+      onChange={(event) => setMessage(event.target.value)}
+      placeholder="Send a message..."
+      disabled={!isAlive}
+      className="chat-input"
+    />
+    <button
+      type="submit"
+      disabled={isSending || !message.trim() || !isAlive}
+      className="chat-send-btn"
+    >
+      {isSending ? "..." : "Send"}
+    </button>
+  </form>
+</div>
+          </div>
         </div>
       </div>
     </SkyBackground>

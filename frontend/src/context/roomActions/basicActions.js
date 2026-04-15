@@ -110,7 +110,6 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
       throw new Error(`Snippet code is empty for topic "${winner}".`);
     }
 
-    // Get tasks for BOTH player and imposter roles
     const playerTaskConfig = getRoleTaskConfig(snippet.tasks || {}, "player");
     const imposterTaskConfig = getRoleTaskConfig(snippet.tasks || {}, "imposter");
     const playerTaskData = sanitizeRoleTaskConfig(playerTaskConfig);
@@ -167,12 +166,15 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
     const snapshot = await getRoomSnapshot(database, roomId);
     const room = snapshot.val();
     const existingPlayer = room?.players?.[user.uid] || {};
+    const isLiveGame = room?.gameState === "playing" || room?.gameState === "meeting";
+    const isExistingPlayer = Boolean(existingPlayer && existingPlayer.uid);
+    const isSpectator = isLiveGame && !isExistingPlayer;
 
     return update(ref(database, `rooms/${roomId}/players/${user.uid}`), {
       uid: user.uid,
       name: playerName,
-      status: existingPlayer.status || "alive",
-      alive: existingPlayer.alive ?? true,
+      status: existingPlayer.status || (isSpectator ? "spectating" : "alive"),
+      alive: isSpectator ? false : existingPlayer.alive ?? true,
       role: existingPlayer.role || "Player",
       connectedAt: Date.now(),
     });
@@ -180,8 +182,13 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
 
   registerPresence: async (roomId) => {
     const user = getRequiredUser();
-    const playerRef = ref(database, `rooms/${roomId}/players/${user.uid}`);
-    await onDisconnect(playerRef).remove();
+    const presenceRef = ref(database, `rooms/${roomId}/presence/${user.uid}`);
+
+    await set(presenceRef, {
+      connectedAt: Date.now(),
+    });
+
+    await onDisconnect(presenceRef).remove();
   },
 
   voteForTopic: async (roomId, topicId) => {

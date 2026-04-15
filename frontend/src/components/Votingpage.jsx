@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useFirebase } from "../context/Firebase";
 import VotingTopicList from "./voting/VotingTopicList";
@@ -15,9 +15,14 @@ const VOTING_DURATION_MS = 15000;
 
 function Votingpage({ data }) {
   const { roomid } = useParams();
-  const { currentUser, finalizeVotingRound, startVoting, voteForTopic } =
-    useFirebase();
-  const { showError } = useToast();
+  const {
+    currentUser,
+    finalizeVotingRound,
+    startVoting,
+    voteForTopic,
+    resetRoomForReplay,
+  } = useFirebase();
+  const { showError, showSuccess } = useToast();
 
   const [start, setStart] = useState(true);
   const [totalv, setTotalv] = useState(0);
@@ -25,6 +30,7 @@ function Votingpage({ data }) {
     Math.ceil(VOTING_DURATION_MS / 1000)
   );
   const [isFinishingVote, setIsFinishingVote] = useState(false);
+  const hasRedirectedRef = useRef(false);
 
   if (!data?.topics || !currentUser) {
     return <Loader message="Loading topics..." />;
@@ -70,6 +76,34 @@ function Votingpage({ data }) {
       setStart(false);
     }
   }, [data]);
+
+  useEffect(() => {
+    if (!data?.players || !data.votingStartedAt) return;
+    if (start) return;
+    if (hasRedirectedRef.current) return;
+
+    const totalVotes = getTotalVotes(data.votes);
+    if (totalVotes > 0) return;
+    if (data.gameState !== "voting") return;
+
+    const redirectToLobby = async () => {
+      if (!currentUser) return;
+
+      hasRedirectedRef.current = true;
+      setIsFinishingVote(true);
+
+      try {
+        await resetRoomForReplay(roomid);
+        showSuccess("No votes were found. Redirected to lobby.", "Voting reset");
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        setIsFinishingVote(false);
+      }
+    };
+
+    redirectToLobby();
+  }, [currentUser, data, resetRoomForReplay, roomid, showError, showSuccess, start]);
 
   const initialize = async () => {
     try {
@@ -128,7 +162,7 @@ function Votingpage({ data }) {
           {!start && <p className="vote-status">Voting closed. Total players voted: {totalv}</p>}
           {!start && !hasVotes && (
             <p className="pregame-copy">
-              No one voted, so the game will not start until the host runs voting again.
+              No votes were found. Redirecting everyone back to the lobby.
             </p>
           )}
           {!start && isHost && hasVotes && (
@@ -136,16 +170,11 @@ function Votingpage({ data }) {
               Start game
             </button>
           )}
-          {!start && isHost && !hasVotes && (
-            <button className="game-btn" onClick={handleRestartVoting}>
-              Start voting
-            </button>
-          )}
           {!start && !isHost && hasVotes && (
             <Loader message="Waiting for the host to continue..." />
           )}
           {!start && !isHost && !hasVotes && (
-            <Loader message="Waiting for the host to restart voting..." />
+            <Loader message="Waiting for the host to redirect the room to the lobby..." />
           )}
         </div>
       </div>

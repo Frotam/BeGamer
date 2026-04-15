@@ -77,8 +77,29 @@
         },
         "players": {
           "$uid": {
-            ".write": "auth != null && (auth.uid === $uid || root.child('rooms/' + $roomId + '/hostId').val() === auth.uid)",
-            ".validate": "!newData.exists() || (newData.hasChildren(['alive', 'name', 'role', 'status', 'uid']) && newData.child('uid').isString() && newData.child('uid').val() === $uid && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 30 && newData.child('status').isString() && newData.child('alive').isBoolean() && newData.child('role').isString())"
+            ".validate": "!newData.exists() || (newData.hasChildren(['alive', 'name', 'role', 'status', 'uid']) && newData.child('uid').isString() && newData.child('uid').val() === $uid && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 30 && newData.child('status').isString() && newData.child('role').isString() && (newData.child('role').val() === 'Player' || newData.child('role').val() === 'Imposter'))",
+            ".write": "auth != null && (root.child('rooms/' + $roomId + '/hostId').val() === auth.uid)",
+            "uid": {
+              ".write": "!data.exists() && auth != null && auth.uid === $uid"
+            },
+            "name": {
+              ".write": "auth != null && auth.uid === $uid"
+            },
+            "alive": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/hostId').val() === auth.uid",
+              ".validate": "newData.isBoolean()"
+            },
+            "status": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.isString() && (newData.val() === 'alive' || newData.val() === 'dead' || newData.val() === 'spectating')"
+            },
+            "color": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/hostId').val() === auth.uid"
+            },
+            "role": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/hostId').val() === auth.uid",
+              ".validate": "newData.isString() && (newData.val() === 'Player' || newData.val() === 'Imposter')"
+            }
           }
         },
         "topics": {
