@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
 const crypto = require("crypto");
+const { log } = require("console");
 
 const app = express();
 
@@ -41,7 +42,6 @@ function cleanup(dir) {
 C++ EXECUTION FUNCTION
 ============================
 */
-
 function runCpp(code, res) {
 
   const runId = crypto.randomUUID();
@@ -52,29 +52,33 @@ function runCpp(code, res) {
 
   const filePath = path.join(runDir, "main.cpp");
 
-  const exePath = path.join(runDir, "main");
-
   fs.writeFileSync(filePath, code);
+
+  console.log("running cpp...");
 
 
 
   exec(
 
-    `g++ "${filePath}" -o "${exePath}"`,
+    `cd "${runDir}" && g++ main.cpp -o main && ./main`,
 
-    (compileErr, _, compileStderr) => {
+    { timeout: 5000 },
 
-      if (compileErr) {
+    (err, stdout, stderr) => {
 
-        cleanup(runDir);
+      cleanup(runDir);
+
+
+
+      if (err) {
+
+        console.log("CPP ERROR:", stderr || err.message);
 
         return res.json({
 
           success: false,
 
-          stage: "compile",
-
-          error: compileStderr
+          error: stderr || err.message
 
         });
 
@@ -82,45 +86,17 @@ function runCpp(code, res) {
 
 
 
-      exec(
-
-        `"${exePath}"`,
-
-        { timeout: 5000 },
-
-        (runErr, stdout, runStderr) => {
-
-          cleanup(runDir);
+      console.log("CPP OUTPUT:", stdout);
 
 
 
-          if (runErr) {
+      res.json({
 
-            return res.json({
+        success: true,
 
-              success: false,
+        output: stdout
 
-              stage: "runtime",
-
-              error: runStderr || runErr.message
-
-            });
-
-          }
-
-
-
-          res.json({
-
-            success: true,
-
-            output: stdout
-
-          });
-
-        }
-
-      );
+      });
 
     }
 

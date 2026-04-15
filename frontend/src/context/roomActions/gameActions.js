@@ -284,6 +284,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     const snapshot = await getRoomSnapshot(database, roomId);
     const room = snapshot.val();
 
+
     if (room.hostId !== user.uid) {
       throw new Error("Only the host can resolve the code run.");
     }
@@ -305,12 +306,12 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     }
 
     const snippet = snippetSnap.val();
-    const playerTask = getRoleTaskConfig(snippet.tasks || {}, "player");
-    const imposterTask = getRoleTaskConfig(snippet.tasks || {}, "imposter");
+    const playerTask =getRoleTaskConfig(snippet.tasks || {}, "player");
+  const imposterTask =getRoleTaskConfig(snippet.tasks || {}, "imposter");
 
     const hasPlayerExpectedOutput = getExpectedOutputLines(playerTask).length > 0;
     const hasImposterExpectedOutput = getExpectedOutputLines(imposterTask).length > 0;
-
+console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutput);
     if (!hasPlayerExpectedOutput || !hasImposterExpectedOutput) {
       throw new Error("Expected outputs are missing for one or more roles.");
     }
@@ -686,13 +687,8 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     const user = getRequiredUser();
     const snapshot = await getRoomSnapshot(database, roomId);
     const room = snapshot.val();
-    const totalVotes = Object.keys(room.votes || {}).length;
-    const allowAnyPlayerReset =
-      room.gameState === "voting" &&
-      room.votingStartedAt &&
-      totalVotes === 0;
 
-    if (!allowAnyPlayerReset && room.hostId !== user.uid) {
+    if (room.hostId !== user.uid) {
       throw new Error("Only the host can reset the room.");
     }
 

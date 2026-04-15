@@ -75,18 +75,22 @@ export const sanitizeRoleTaskConfig = (taskConfig) => {
     expectedOutput: taskConfig.expectedOutput || null,
   };
 };
-
 export const normalizeOutputLines = (output) => {
-  const normalized = String(output || "")
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((line) => line.trim());
 
-  while (normalized.length > 0 && normalized[normalized.length - 1] === "") {
-    normalized.pop();
-  }
+ const normalized = String(output || "")
+  .replace(/,/g,"\n")
+  .replace(/\r\n/g,"\n")
+  .split("\n")
+  .map(line => line.trim());
 
-  return normalized;
+ while(
+  normalized.length>0 &&
+  normalized[normalized.length-1]===""
+ ){
+  normalized.pop();
+ }
+
+ return normalized;
 };
 
 export const getExpectedOutputLines = (taskConfig) => {
@@ -110,6 +114,7 @@ export const getExpectedOutputLines = (taskConfig) => {
 export const compareOutputs = (actualOutput, expectedOutput) => {
   const actualLines = normalizeOutputLines(actualOutput);
   const expectedLines = getExpectedOutputLines(expectedOutput);
+console.log(actualLines,expectedLines);
 
   if (actualLines.length !== expectedLines.length) {
     return false;
