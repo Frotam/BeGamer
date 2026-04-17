@@ -1,27 +1,20 @@
-FROM ubuntu:22.04
+FROM node:18
 
-# install languages
+# install extra compilers
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
-    nodejs \
-    npm \
     g++ \
-    build-essential \
-    curl
+    build-essential
 
-# set working directory
 WORKDIR /app
 
-# copy backend files
+COPY package*.json ./
+
+RUN npm install
+
 COPY . .
 
-# install dependencies if exist
-RUN pip3 install -r requirements.txt || true
-RUN npm install || true
-
-# expose port
 EXPOSE 5000
 
-# start server
 CMD ["npm","start"]
