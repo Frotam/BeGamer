@@ -16,7 +16,7 @@ const RUN_TIMEOUT_MS = 5000;
 const MAX_CODE_BYTES = 100 * 1024;
 const MAX_OUTPUT_BYTES = 64 * 1024;
 
-
+console.log("got the req")
 
 
 function cleanup(dir) {
@@ -426,7 +426,7 @@ app.post("/run-code", (req, res) => {
 
 
   if (language === "cpp") {
-
+  
     return runCpp(code, res);
 
   }
