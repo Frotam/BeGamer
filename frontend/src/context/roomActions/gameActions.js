@@ -221,7 +221,7 @@ export const createGameActions = ({ database, getRequiredUser }) => {
       }
 
       imposterId = imposterData.imposterId;
-      console.log("[SECURITY] Imposter selected by backend:", imposterId);
+      ("[SECURITY] Imposter selected by backend:", imposterId);
     } catch (error) {
       console.error("[SECURITY] Failed to get imposter from backend, using secure fallback:", error);
       // Fallback to secure client-side selection if backend is unavailable
@@ -412,7 +412,7 @@ export const createGameActions = ({ database, getRequiredUser }) => {
 
     const hasPlayerExpectedOutput = getExpectedOutputLines(playerTask).length > 0;
     const hasImposterExpectedOutput = getExpectedOutputLines(imposterTask).length > 0;
-console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutput);
+(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutput);
     if (!hasPlayerExpectedOutput || !hasImposterExpectedOutput) {
       throw new Error("Expected outputs are missing for one or more roles.");
     }

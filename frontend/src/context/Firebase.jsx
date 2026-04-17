@@ -46,7 +46,7 @@ export const FirebaseProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         if (isDev) {
-          console.log("[Firebase debug] Auth ready", {
+          ("[Firebase debug] Auth ready", {
             uid: user.uid,
             isAnonymous: user.isAnonymous,
             ...firebaseDebugConfig,
@@ -63,7 +63,7 @@ export const FirebaseProvider = ({ children }) => {
         const credential = await signInAnonymously(auth);
 
         if (isDev) {
-          console.log("[Firebase debug] Anonymous sign-in success", {
+          ("[Firebase debug] Anonymous sign-in success", {
             uid: credential.user.uid,
             isAnonymous: credential.user.isAnonymous,
             ...firebaseDebugConfig,

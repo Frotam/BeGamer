@@ -16,7 +16,7 @@ const RUN_TIMEOUT_MS = 5000;
 const MAX_CODE_BYTES = 100 * 1024;
 const MAX_OUTPUT_BYTES = 64 * 1024;
 
-console.log("got the req")
+("got the req")
 
 
 function cleanup(dir) {
@@ -190,7 +190,7 @@ async function runCpp(code, res) {
 
     writeSourceFile(runDir, "main.cpp", code);
 
-    console.log("running cpp inside backend container...");
+    ("running cpp inside backend container...");
 
     const compileResult = await runCommand(
       "g++",
@@ -204,7 +204,7 @@ async function runCpp(code, res) {
 
     if (!compileResult.success) {
 
-      console.log("CPP COMPILE ERROR:", compileResult.error);
+      ("CPP COMPILE ERROR:", compileResult.error);
 
       return sendRunError(res, compileResult);
 
@@ -222,13 +222,13 @@ async function runCpp(code, res) {
 
     if (!runResult.success) {
 
-      console.log("CPP ERROR:", runResult.error);
+      ("CPP ERROR:", runResult.error);
 
       return sendRunError(res, runResult);
 
     }
 
-    console.log("CPP OUTPUT:", runResult.output);
+    ("CPP OUTPUT:", runResult.output);
 
     return res.json({
 
@@ -257,7 +257,7 @@ async function runJs(code, res) {
 
     writeSourceFile(runDir, "main.js", code);
 
-    console.log("running js inside backend container...");
+    ("running js inside backend container...");
 
     const runResult = await runCommand(
       "node",
@@ -299,7 +299,7 @@ async function runPython(code, res) {
 
     writeSourceFile(runDir, "main.py", code);
 
-    console.log("running python inside backend container...");
+    ("running python inside backend container...");
 
     const runResult = await runCommand(
       "python3",
@@ -361,7 +361,7 @@ app.post("/select-imposter", (req, res) => {
     });
   }
 
-  console.log(`[IMPOSTER_SELECTION] Selected imposter: ${imposterId} from ${playerIds.length} players`);
+  (`[IMPOSTER_SELECTION] Selected imposter: ${imposterId} from ${playerIds.length} players`);
 
   return res.json({
     success: true,
@@ -377,7 +377,7 @@ app.post("/run-code", (req, res) => {
 
 
 
-  console.log("language:", language);
+  ("language:", language);
 
 
 
@@ -457,7 +457,7 @@ app.use((err, req, res, next) => {
 
 const server = app.listen(PORT, () => {
 
-  console.log(`Server running on port ${PORT}`);
+  (`Server running on port ${PORT}`);
 
 });
 

@@ -114,7 +114,7 @@ export const getExpectedOutputLines = (taskConfig) => {
 export const compareOutputs = (actualOutput, expectedOutput) => {
   const actualLines = normalizeOutputLines(actualOutput);
   const expectedLines = getExpectedOutputLines(expectedOutput);
-console.log(actualLines,expectedLines);
+(actualLines,expectedLines);
 
   if (actualLines.length !== expectedLines.length) {
     return false;

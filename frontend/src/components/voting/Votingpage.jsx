@@ -53,7 +53,7 @@ function Votingpage({ data }) {
     onExpire: () => {
       setStart(false);
       setTotalv(getTotalVotes(data.votes));
-      console.log("Voting ended");
+      ("Voting ended");
     },
   });
 
@@ -71,7 +71,7 @@ function Votingpage({ data }) {
     const totalPlayers = getTotalPlayers(data.players);
 
     if (totalVotes === totalPlayers) {
-      console.log("Everyone voted");
+      ("Everyone voted");
       setTotalv(totalVotes);
       setStart(false);
     }
