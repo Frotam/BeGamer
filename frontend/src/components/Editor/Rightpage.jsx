@@ -7,7 +7,7 @@ import {
 } from "../../context/roomActions";
 import { useVotingTimer } from "../voting/useVotingTimer";
 import { useToast } from "../../context/Toast";
-import Loader from "../Loader";
+import Loader from "../Loader/Loader";
 
 function Rightpage({ data }) {
 

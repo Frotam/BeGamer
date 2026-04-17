@@ -8,6 +8,7 @@
 
 .loader-wrap-compact {
   gap: 48px;
+  
   padding: 12px 8px;
 }
 
@@ -26,7 +27,7 @@
   background-origin: border-box;
   position: relative;
   animation: l9-0 2s infinite;
-  color: var(--text-h, #000);
+  color: rgb(247, 149, 11);
 }
 
 .loader::before {
@@ -58,7 +59,7 @@
 
 .loader-message {
   margin: 0;
-  color: var(--text-h, #000);
+  color:  rgb(255, 0, 0);
   font-weight: 600;
   font-size: 0.98rem;
 }

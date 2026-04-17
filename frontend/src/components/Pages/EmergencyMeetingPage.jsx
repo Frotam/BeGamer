@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useFirebase } from "../context/Firebase";
-import Loader from "./Loader";
-import { useVotingTimer } from "./voting/useVotingTimer";
-import { MEETING_DURATION_MS } from "../context/roomActions";
-import { useToast } from "../context/Toast";
-import SkyBackground from "./SkyBackground";
+import { useFirebase } from "../../context/Firebase";
+import Loader from "../Loader/Loader";
+import { useVotingTimer } from "../voting/useVotingTimer";
+import { MEETING_DURATION_MS } from "../../context/roomActions";
+import { useToast } from "../../context/Toast";
+import SkyBackground from "../Background/SkyBackground";
 
 function EmergencyMeetingPage({ data }) {
   const { roomid } = useParams();

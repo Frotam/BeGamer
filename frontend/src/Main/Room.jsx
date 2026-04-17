@@ -1,8 +1,8 @@
 import { useLocation } from "react-router-dom";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useFirebase } from "./context/Firebase";
-import StartButton from "./components/StartButton";
+import { useFirebase } from "../context/Firebase";
+import StartButton from "../components/StartButton";
 import Mainlog from "./components/Mainlog";
 import Votingpage from "./components/Votingpage";
 import Loader from "./components/Loader";
@@ -11,7 +11,7 @@ import SkyBackground from "./components/SkyBackground";
 import RoleRevealPage from "./components/RoleRevealPage";
 import { Button } from "@mantine/core";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import { useToast } from "./context/Toast";
+import { useToast } from "../context/Toast";
 
 const ROLE_REVEAL_DURATION_MS = 4000;
 const ROLE_REVEAL_STORAGE_PREFIX = "begameer_role_reveal_shown";

@@ -1,9 +1,9 @@
 import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useFirebase } from "./context/Firebase";
+import { useFirebase } from "../context/Firebase";
 import Loader from "./components/Loader";
 import SkyBackground from "./components/SkyBackground";
-import { useToast } from "./context/Toast";
+import { useToast } from "../context/Toast";
 
 function Home() {
   const navigate = useNavigate();

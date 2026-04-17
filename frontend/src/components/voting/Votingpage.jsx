@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useFirebase } from "../context/Firebase";
-import VotingTopicList from "./voting/VotingTopicList";
-import { useVotingTimer } from "./voting/useVotingTimer";
+import { useFirebase } from "../../context/Firebase";
+import VotingTopicList from "./VotingTopicList";
+import { useVotingTimer } from "./useVotingTimer";
 import {
   getTotalPlayers,
   getTotalVotes,
-} from "./voting/voteUtils";
-import Loader from "./Loader";
-import SkyBackground from "./SkyBackground";
-import { useToast } from "../context/Toast";
+} from "./voteUtils";
+import Loader from "../Loader/Loader";
+import SkyBackground from "../Background/SkyBackground";
+import { useToast } from "../../context/Toast";
 
 const VOTING_DURATION_MS = 15000;
 
