@@ -57,34 +57,13 @@ function Room() {
   const awaitingResetRef = useRef(false);
   const lastPlayingMarkerRef = useRef(null);
 
+const copyLink = () => {
 
-  const copyLink = () => {
+  const fullUrl = `${window.location.origin}${location.pathname}${location.search}${location.hash}`;
 
-    const fullUrl =
-      window.location.origin +
-      location.pathname +
-      location.search +
-      location.hash;
+  navigator.clipboard.writeText(fullUrl);
 
-    navigator.clipboard.writeText(fullUrl)
-      .then(() => {
-
-        showSuccess(
-          "Room link copied to clipboard.",
-          "Link copied"
-        );
-
-      })
-      .catch(error => {
-
-        showError(
-          error.message ||
-          "Unable to copy the room link."
-        );
-
-      });
-
-  };
+};
 
 
   useEffect(() => {
