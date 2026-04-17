@@ -1,11 +1,13 @@
 FROM node:18
 
-# install extra compilers
+# install compilers
 RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    g++ \
-    build-essential
+ python3 \
+ python3-pip \
+ g++ \
+ build-essential \
+ bash \
+ curl
 
 WORKDIR /app
 
@@ -15,6 +17,8 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 5000
+ENV NODE_ENV=production
 
-CMD ["npm","start"]
+EXPOSE 10000
+
+CMD ["node","index.js"]
