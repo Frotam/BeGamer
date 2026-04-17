@@ -190,26 +190,32 @@ async function runCpp(code, res) {
 
     writeSourceFile(runDir, "main.cpp", code);
 
-    console.log("running cpp inside docker...");
+    console.log("running cpp inside backend container...");
 
-    const dockerCommand = `
-docker run --rm \
---memory=256m \
---cpus=0.5 \
---network=none \
---pids-limit=64 \
--v ${runDir}:/app \
--w /app \
-begamer-cpp \
-bash -c "g++ main.cpp -O0 -std=c++17 -o main && timeout 5s ./main"
-`;
-
-    const runResult = await runCommand(
-      "bash",
-      ["-c", dockerCommand],
+    const compileResult = await runCommand(
+      "g++",
+      ["main.cpp", "-O0", "-std=c++17", "-o", "main"],
       {
         cwd: runDir,
-        timeoutMs: COMPILE_TIMEOUT_MS + RUN_TIMEOUT_MS,
+        timeoutMs: COMPILE_TIMEOUT_MS,
+        stage: "compile"
+      }
+    );
+
+    if (!compileResult.success) {
+
+      console.log("CPP COMPILE ERROR:", compileResult.error);
+
+      return sendRunError(res, compileResult);
+
+    }
+
+    const runResult = await runCommand(
+      "./main",
+      [],
+      {
+        cwd: runDir,
+        timeoutMs: RUN_TIMEOUT_MS,
         stage: "runtime"
       }
     );
@@ -251,23 +257,11 @@ async function runJs(code, res) {
 
     writeSourceFile(runDir, "main.js", code);
 
-    console.log("running js inside docker...");
-
-    const dockerCommand = `
-docker run --rm \
---memory=128m \
---cpus=0.5 \
---network=none \
---pids-limit=64 \
--v ${runDir}:/app \
--w /app \
-begamer-node \
-node main.js
-`;
+    console.log("running js inside backend container...");
 
     const runResult = await runCommand(
-      "bash",
-      ["-c", dockerCommand],
+      "node",
+      ["main.js"],
       {
         cwd: runDir,
         timeoutMs: RUN_TIMEOUT_MS,
@@ -305,23 +299,11 @@ async function runPython(code, res) {
 
     writeSourceFile(runDir, "main.py", code);
 
-    console.log("running python inside docker...");
-
-    const dockerCommand = `
-docker run --rm \
---memory=128m \
---cpus=0.5 \
---network=none \
---pids-limit=64 \
--v ${runDir}:/app \
--w /app \
-begamer-python \
-python3 main.py
-`;
+    console.log("running python inside backend container...");
 
     const runResult = await runCommand(
-      "bash",
-      ["-c", dockerCommand],
+      "python3",
+      ["main.py"],
       {
         cwd: runDir,
         timeoutMs: RUN_TIMEOUT_MS,
