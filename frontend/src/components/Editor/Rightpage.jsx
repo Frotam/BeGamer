@@ -13,7 +13,7 @@ function Rightpage({ data }) {
 
   const {
     currentUser,
-    resolveCodeRun,
+    executeCodeAndResolve,
     runCode,
     sendmessage,
     startEmergencyMeeting,
@@ -30,6 +30,7 @@ function Rightpage({ data }) {
   );
 
   const autoRunTriggeredRef = useRef(false);
+  const codeResolveTriggeredRef = useRef(false);
   const chatContainerRef = useRef(null);
   const isAtBottomRef = useRef(true);
 
@@ -127,76 +128,41 @@ function Rightpage({ data }) {
 
 
 
-
-  const executeCodeAndResolve = async () => {
-
-    try {
-
-      setIsResolvingCode(true);
-
-      const code =
-        data?.codestate?.code;
-
-      const language =
-        data?.codestate?.language;
-
-      const response =
-        await fetch(
-          "http://localhost:5000/run-code",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({
-              code,
-              language,
-            }),
-          }
-        );
-
-      const result =
-        await response.json();
-
-      if (!result.success) {
-
-        throw new Error(
-          result.error ||
-            "Compilation failed"
-        );
-
-      }
-
-      await resolveCodeRun(
-        roomid,
-        result.output
-      );
-
-    } catch (error) {
-
-      showError(error.message);
-
-    } finally {
-
-      setIsResolvingCode(false);
-
-    }
-
-  };
-
-
-
   useEffect(() => {
 
-    if (!isCodeReviewPending)
+    if (!isCodeReviewPending) {
+      codeResolveTriggeredRef.current = false;
       return;
+    }
 
     if (!isHost) return;
 
-    executeCodeAndResolve();
+    if (codeResolveTriggeredRef.current)
+      return;
 
-  }, [isCodeReviewPending]);
+    codeResolveTriggeredRef.current = true;
+
+    const runAndResolveCode = async () => {
+      try {
+
+        setIsResolvingCode(true);
+
+        await executeCodeAndResolve(roomid);
+
+      } catch (error) {
+
+        showError(error.message);
+
+      } finally {
+
+        setIsResolvingCode(false);
+
+      }
+    };
+
+    runAndResolveCode();
+
+  }, [executeCodeAndResolve, isCodeReviewPending, isHost, roomid, showError]);
 
 
 
@@ -253,10 +219,6 @@ function Rightpage({ data }) {
       }
 
     };
-
-
-
-
   return (
 
     <div className="rightpage-layout">

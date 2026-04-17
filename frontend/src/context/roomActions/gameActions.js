@@ -31,6 +31,66 @@ const PLAYER_COLORS = [
   "#7c3aed",
 ];
 
+const CODE_RUN_REQUEST_TIMEOUT_MS = 15000;
+const SUPPORTED_CODE_LANGUAGES = new Set(["cpp", "javascript", "python"]);
+
+const getBackendUrl = (fallbackUrl = "http://localhost:5000") => {
+  return import.meta.env.VITE_BACKEND_URL || fallbackUrl;
+};
+
+const parseCodeRunResponse = async (response) => {
+  let result = null;
+
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error("Code runner returned an invalid response.");
+  }
+
+  if (!response.ok) {
+    throw new Error(result?.error || `Code runner failed with status ${response.status}.`);
+  }
+
+  return result;
+};
+
+const runSubmittedCode = async ({ code, language }) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, CODE_RUN_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${getBackendUrl("http://localhost:5001")}/run-code`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code,
+        language,
+      }),
+      signal: controller.signal,
+    });
+
+    const result = await parseCodeRunResponse(response);
+
+    if (!result.success) {
+      throw new Error(result.error || "Compilation failed");
+    }
+
+    return String(result.output || "");
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Code runner timed out.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const pickPlayerColors = (playerIds) => {
   const colors = [...PLAYER_COLORS];
 
@@ -44,7 +104,8 @@ const pickPlayerColors = (playerIds) => {
   );
 };
 
-export const createGameActions = ({ database, getRequiredUser }) => ({
+export const createGameActions = ({ database, getRequiredUser }) => {
+  const actions = {
   startVoting: async (roomId) => {
     const user = getRequiredUser();
     const snapshot = await getRoomSnapshot(database, roomId);
@@ -144,8 +205,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     // This prevents players from manipulating their role assignment
     let imposterId;
     try {
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
-      const imposterResponse = await fetch(`${backendUrl}/select-imposter`, {
+      const imposterResponse = await fetch(`${getBackendUrl()}/select-imposter`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerIds })
@@ -256,6 +316,48 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       codeRunRequestedAt: serverTimestamp(),
       codeRunReason: "Round timer ended. Review the current code result.",
     });
+  },
+
+  executeCodeAndResolve: async (roomId) => {
+    const user = getRequiredUser();
+    const snapshot = await getRoomSnapshot(database, roomId);
+    const room = snapshot.val();
+
+    if (!room) {
+      throw new Error("Room not found.");
+    }
+
+    if (room.hostId !== user.uid) {
+      throw new Error("Only the host can execute and resolve the code run.");
+    }
+
+    ensureAlivePlayer(room, user);
+
+    if (room.gameState !== "playing") {
+      throw new Error("Code can only be executed during gameplay.");
+    }
+
+    if (!room.codeRunPending) {
+      throw new Error("There is no pending code review.");
+    }
+
+    const code = normalizeStoredCode(room.codestate?.code || "");
+    const language = String(room.codestate?.language || "").trim().toLowerCase();
+
+    if (!hasUsableCode(code)) {
+      throw new Error("There is no code to execute.");
+    }
+
+    if (!SUPPORTED_CODE_LANGUAGES.has(language)) {
+      throw new Error("Unsupported language.");
+    }
+
+    const output = await runSubmittedCode({
+      code,
+      language,
+    });
+
+    return actions.resolveCodeRun(roomId, output);
   },
 
   startEmergencyMeeting: async (
@@ -694,4 +796,7 @@ console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutpu
 
     return update(getRoomRef(database, roomId), buildLobbyResetPayload(room));
   },
-});
+  };
+
+  return actions;
+};
