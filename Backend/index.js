@@ -182,13 +182,6 @@ function sendRunError(res, result) {
   });
 }
 
-
-
-/*
-============================
-C++ EXECUTION FUNCTION
-============================
-*/
 async function runCpp(code, res) {
 
   const runDir = createRunDir();

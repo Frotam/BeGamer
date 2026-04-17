@@ -1,19 +1,14 @@
-import "./App.css";
-import { useState } from "react";
+import './assets/css/index.css'
 import {
   Outlet,
   RouterProvider,
   createBrowserRouter,
-  Link,
 } from "react-router-dom";
 import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import Home from "./Home";
-import Test from "./Test";
-import Room from "./Room";
-import RoleRevealPage from "./components/RoleRevealPage";
-import SkyBackground from "./components/SkyBackground";
+import Home from "./Main/Home";
+import Room from "./Main/Room";
 import { FirebaseProvider } from "./context/Firebase";
 import { ToastProvider } from "./context/Toast";
 import "./components/Editor/EditorLayout.css";

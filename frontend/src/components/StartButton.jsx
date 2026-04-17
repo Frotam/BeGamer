@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useFirebase } from "../context/Firebase";
-import Votingpage from "./Votingpage";
-import Loader from "./Loader";
+import Votingpage from "./voting/Votingpage";
+import Loader from "./Loader/Loader";
 import { useToast } from "../context/Toast";
 
 function StartButton({ data }) {

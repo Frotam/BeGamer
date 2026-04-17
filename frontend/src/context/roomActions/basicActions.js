@@ -170,14 +170,21 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
     const isExistingPlayer = Boolean(existingPlayer && existingPlayer.uid);
     const isSpectator = isLiveGame && !isExistingPlayer;
 
-    return update(ref(database, `rooms/${roomId}/players/${user.uid}`), {
-      uid: user.uid,
-      name: playerName,
-      status: existingPlayer.status || (isSpectator ? "spectating" : "alive"),
-      alive: isSpectator ? false : existingPlayer.alive ?? true,
-      role: existingPlayer.role || "Player",
-      connectedAt: Date.now(),
-    });
+    const playerPayload = isExistingPlayer
+      ? {
+          name: playerName,
+          connectedAt: Date.now(),
+        }
+      : {
+          uid: user.uid,
+          name: playerName,
+          status: existingPlayer.status || (isSpectator ? "spectating" : "alive"),
+          alive: isSpectator ? false : existingPlayer.alive ?? true,
+          role: existingPlayer.role || "Player",
+          connectedAt: Date.now(),
+        };
+
+    return update(ref(database, `rooms/${roomId}/players/${user.uid}`), playerPayload);
   },
 
   registerPresence: async (roomId) => {

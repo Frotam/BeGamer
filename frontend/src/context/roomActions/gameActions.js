@@ -233,17 +233,16 @@ export const createGameActions = ({ database, getRequiredUser }) => {
     }
 
     const assignedColors = pickPlayerColors(playerIds);
-    const updatedPlayers = { ...(room.players || {}) };
+    const playerRoleAndColorUpdates = {};
     let codestateUpdates = {
       "codestate/tasks": {},
     };
 
     playerIds.forEach((playerId) => {
-      updatedPlayers[playerId] = {
-        ...updatedPlayers[playerId],
-        role: playerId === imposterId ? "Imposter" : "Player",
-        color: assignedColors[playerId],
-      };
+      playerRoleAndColorUpdates[`players/${playerId}/role`] =
+        playerId === imposterId ? "Imposter" : "Player";
+      playerRoleAndColorUpdates[`players/${playerId}/color`] =
+        assignedColors[playerId];
     });
 
     if (!hasUsableCode(existingRoomCode)) {
@@ -290,8 +289,8 @@ export const createGameActions = ({ database, getRequiredUser }) => {
       votingdone: true,
       winner,
       imposterId,
-      players: updatedPlayers,
       "codestate/playersCursor": {},
+      ...playerRoleAndColorUpdates,
       ...codestateUpdates,
     });
   },
@@ -530,6 +529,7 @@ console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutpu
     const alivePlayerIds = getAlivePlayerIds(room.players || {});
     const resolvedMeetingVotes = { ...(room.meetingVotes || {}) };
     const updatedPlayers = { ...(room.players || {}) };
+    const playerStatusUpdates = {};
     const nextRound = (room.currentRound || 1) + 1;
 
     alivePlayerIds.forEach((playerId) => {
@@ -558,6 +558,8 @@ console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutpu
         alive: false,
         status: "dead",
       };
+      playerStatusUpdates[`players/${eliminatedPlayerId}/alive`] = false;
+      playerStatusUpdates[`players/${eliminatedPlayerId}/status`] = "dead";
     }
 
     if (eliminatedPlayerId && eliminatedPlayerId === room.imposterId) {
@@ -574,7 +576,7 @@ console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutpu
         meetingVotes: resolvedMeetingVotes,
         meetingReason: null,
         lastEliminatedId: eliminatedPlayerId,
-        players: updatedPlayers,
+        ...playerStatusUpdates,
       });
     }
 
@@ -597,7 +599,7 @@ console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutpu
         meetingVotes: resolvedMeetingVotes,
         meetingReason: null,
         lastEliminatedId: eliminatedPlayerId,
-        players: updatedPlayers,
+        ...playerStatusUpdates,
       });
     }
 
@@ -616,7 +618,7 @@ console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutpu
         meetingVotes: resolvedMeetingVotes,
         meetingReason: null,
         lastEliminatedId: eliminatedPlayerId,
-        players: updatedPlayers,
+        ...playerStatusUpdates,
       });
     }
 
@@ -633,7 +635,7 @@ console.log(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutpu
       meetingVotes: resolvedMeetingVotes,
       meetingReason: null,
       lastEliminatedId: eliminatedPlayerId,
-      players: updatedPlayers,
+      ...playerStatusUpdates,
     });
   },
 
