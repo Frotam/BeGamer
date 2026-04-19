@@ -367,7 +367,7 @@ export const createGameActions = ({ database, getRequiredUser }) => {
         codeRunReason: null,
         meetingStartedAt: serverTimestamp(),
         meetingVotes: {},
-        meetingReason: "There was sabotage in the current code.",
+        meetingReason: "There was a compilation error while running the code.",
       });
     }
 
@@ -389,14 +389,9 @@ export const createGameActions = ({ database, getRequiredUser }) => {
     }
 
     return update(getRoomRef(database, roomId), {
-      gameState: "meeting",
-      resultMessage: null,
-      codeRunPending: false,
-      codeRunRequestedAt: null,
-      codeRunReason: null,
-      meetingStartedAt: serverTimestamp(),
-      meetingVotes: {},
-      meetingReason: reason,
+      codeRunPending: true,
+      codeRunRequestedAt: serverTimestamp(),
+      codeRunReason: reason,
     });
   },
 
@@ -440,7 +435,7 @@ export const createGameActions = ({ database, getRequiredUser }) => {
     const matchesPlayerOutput = compareOutputs(submittedOutput, playerTask);
     const matchesImposterOutput = compareOutputs(submittedOutput, imposterTask);
 
-    if (matchesPlayerOutput && !matchesImposterOutput) {
+    if (matchesPlayerOutput) {
       return update(getRoomRef(database, roomId), {
         gameState: "crew_win",
         winningTeam: "crew",
@@ -457,7 +452,7 @@ export const createGameActions = ({ database, getRequiredUser }) => {
       });
     }
 
-    if (matchesImposterOutput && !matchesPlayerOutput) {
+    if (matchesImposterOutput) {
       return update(getRoomRef(database, roomId), {
         gameState: "imposter_win",
         winningTeam: "imposter",
@@ -474,14 +469,18 @@ export const createGameActions = ({ database, getRequiredUser }) => {
     }
 
     return update(getRoomRef(database, roomId), {
-      gameState: "meeting",
-      resultMessage: null,
+      gameState: "draw",
+      winningTeam: null,
+      resultMessage:
+        "No one wins because the output did not match the player or imposter target.",
+      gameEndedAt: serverTimestamp(),
       codeRunPending: false,
       codeRunRequestedAt: null,
       codeRunReason: null,
-      meetingStartedAt: serverTimestamp(),
+      roundStartedAt: null,
+      meetingStartedAt: null,
       meetingVotes: {},
-      meetingReason: "There was sabotage in the current code.",
+      meetingReason: null,
     });
   },
 

@@ -185,7 +185,8 @@ function sendRunError(res, result) {
 async function runCpp(code, res) {
 
   const runDir = createRunDir();
-
+  console.log("runnning");
+  
   try {
 
     writeSourceFile(runDir, "main.cpp", code);
@@ -252,7 +253,7 @@ async function runCpp(code, res) {
 async function runJs(code, res) {
 
   const runDir = createRunDir();
-
+console.log("runnning2");
   try {
 
     writeSourceFile(runDir, "main.js", code);
@@ -294,7 +295,7 @@ async function runJs(code, res) {
 async function runPython(code, res) {
 
   const runDir = createRunDir();
-
+console.log("runnning3");
   try {
 
     writeSourceFile(runDir, "main.py", code);
