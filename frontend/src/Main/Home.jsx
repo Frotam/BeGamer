@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useFirebase } from "../context/Firebase";
 import Loader from "../components/Loader/Loader";
 import SkyBackground from "../components/Background/SkyBackground";
-import { useToast } from "../context/Toast";
+import { ToastProvider, useToast } from "../context/Toast";
 
 function Home() {
   const navigate = useNavigate();
@@ -30,18 +30,21 @@ function Home() {
     if (!authReady) return;
 
     const roomId = roomInput.current?.value.trim() || "";
-    if (!roomId) return;
-
+    if (!roomId){
+      showError("Room Code is Empty")
+      return 
+    }
+    
     try {
       const name = getName();
-
+      
       setActionMessage("Joining room...");
-
+      
       localStorage.setItem("username", name);
       localStorage.removeItem("pendingroom");
-
+      
       await joinRoom(roomId, name);
-
+      roomInput.current.value="";
       navigate(`/rooms/${roomId}`);
     } catch (err) {
       setActionMessage("");
@@ -54,7 +57,8 @@ function Home() {
 
     try {
       const name = getName();
-
+       
+      
       const roomId = Math.random()
         .toString(36)
         .substring(2, 8);

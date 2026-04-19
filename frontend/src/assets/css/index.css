@@ -202,7 +202,12 @@ code {
 
 /* white layer behind button */
  
-
+button:hover{
+  background-color: black;
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+  font-size:xx-large;
+}
 
 /* press effect */
 .game-btn:active{

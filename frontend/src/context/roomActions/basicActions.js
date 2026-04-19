@@ -162,15 +162,35 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
   },
 
   joinRoom: async (roomId, playerName) => {
-    const user = getRequiredUser();
-    const snapshot = await getRoomSnapshot(database, roomId);
-    const room = snapshot.val();
-    const existingPlayer = room?.players?.[user.uid] || {};
-    const isLiveGame = room?.gameState === "playing" || room?.gameState === "meeting";
-    const isExistingPlayer = Boolean(existingPlayer && existingPlayer.uid);
-    const isSpectator = isLiveGame && !isExistingPlayer;
 
-    const playerPayload = isExistingPlayer
+  const user = getRequiredUser();
+
+  const snapshot = await getRoomSnapshot(database, roomId);
+  console.log(snapshot);
+  
+
+  // exit early if room doesn't exist
+  if (!snapshot.exists()) {
+    throw new Error("Room not found");
+  }
+
+  const room = snapshot.val();
+
+  const existingPlayer =
+    room?.players?.[user.uid] || {};
+
+  const isLiveGame =
+    room?.gameState === "playing" ||
+    room?.gameState === "meeting";
+
+  const isExistingPlayer =
+    Boolean(existingPlayer?.uid);
+
+  const isSpectator =
+    isLiveGame && !isExistingPlayer;
+
+  const playerPayload =
+    isExistingPlayer
       ? {
           name: playerName,
           connectedAt: Date.now(),
@@ -178,14 +198,24 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
       : {
           uid: user.uid,
           name: playerName,
-          status: existingPlayer.status || (isSpectator ? "spectating" : "alive"),
-          alive: isSpectator ? false : existingPlayer.alive ?? true,
-          role: existingPlayer.role || "Player",
+          status:
+            existingPlayer.status ||
+            (isSpectator ? "spectating" : "alive"),
+          alive:
+            isSpectator
+              ? false
+              : existingPlayer.alive ?? true,
+          role:
+            existingPlayer.role || "Player",
           connectedAt: Date.now(),
         };
 
-    return update(ref(database, `rooms/${roomId}/players/${user.uid}`), playerPayload);
-  },
+  return update(
+    ref(database, `rooms/${roomId}/players/${user.uid}`),
+    playerPayload
+  );
+
+},
 
   registerPresence: async (roomId) => {
     const user = getRequiredUser();
