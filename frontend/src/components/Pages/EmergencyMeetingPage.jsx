@@ -205,54 +205,177 @@ function EmergencyMeetingPage({ data }) {
               )}
             </div>
 
-            <div className="chat-section">
-  <h3 className="chat-header">Discussion Chat</h3>
+            <div
+              className="chat-section d-flex flex-column arcade"
+              style={{
+                width: "260px",
+                height: "320px",
 
-  <div
-    className="chat-messages"
-    ref={chatContainerRef}
-    onScroll={handleScroll}
-  >
-    {chatMessages.length > 0 ? (
-      chatMessages.map((chat) => (
-        <div key={chat.id} className="chat-message">
-          <strong
-            className="chat-sender"
-            style={{
-              color:
-                chat.uid === currentUser?.uid
-                  ? "#4caf50"
-                  : "#2f80ff",
-            }}
-          >
-            {chat.uid === currentUser?.uid ? "You" : chat.name}:
-          </strong>{" "}
-          <span>{chat.text}</span>
-        </div>
-      ))
-    ) : (
-      <p className="no-messages">No messages yet.</p>
-    )}
-  </div>
+                background: "#0f172a",
 
-  <form onSubmit={handleSendMessage} className="chat-form">
-    <input
-      type="text"
-      value={message}
-      onChange={(event) => setMessage(event.target.value)}
-      placeholder="Send a message..."
-      disabled={!isAlive}
-      className="chat-input"
-    />
-    <button
-      type="submit"
-      disabled={isSending || !message.trim() || !isAlive}
-      className="chat-send-btn"
-    >
-      {isSending ? "..." : "Send"}
-    </button>
-  </form>
-</div>
+                border: "2px solid #22c55e",
+
+                boxShadow: "4px 4px 0px #22c55e",
+
+                color: "#e5e7eb",
+
+                overflow: "hidden"
+              }}
+            >
+
+              <h6
+                className="mb-0 p-2"
+                style={{
+                  borderBottom: "2px solid #22c55e",
+
+                  background: "#020617",
+
+                  color: "#38bdf8",
+
+                  letterSpacing: "1px",
+
+                  fontSize: "12px"
+                }}
+              >
+                DISCUSSION CHAT
+              </h6>
+
+
+              <div
+                className="chat-messages flex-grow-1 p-2"
+                ref={chatContainerRef}
+                onScroll={handleScroll}
+                style={{
+                  overflowY: "auto",
+
+                  fontSize: "12px",
+
+                  background: "#020617",
+
+                  minHeight: 0
+                }}
+              >
+
+                {chatMessages.length > 0 ? (
+
+                  chatMessages.map((chat) => (
+
+                    <div
+                      key={chat.id}
+
+                      className="mb-1"
+
+                      style={{ wordBreak: "break-word" }}
+                    >
+
+                      <strong
+                        style={{
+                          color:
+                            chat.uid === currentUser?.uid
+                              ? "#22c55e"
+                              : "#38bdf8",
+
+                          fontSize: "11px"
+                        }}
+                      >
+                        {chat.uid === currentUser?.uid
+                          ? "YOU"
+                          : chat.name}
+                        :
+                      </strong>{" "}
+
+                      <span style={{ color: "#e5e7eb" }}>
+                        {chat.text}
+                      </span>
+
+                    </div>
+
+                  ))
+
+                ) : (
+
+                  <p
+                    className="mb-0"
+
+                    style={{
+                      color: "#64748b",
+
+                      fontSize: "11px"
+                    }}
+                  >
+                    no messages yet...
+                  </p>
+
+                )}
+
+              </div>
+
+
+              <form
+                onSubmit={handleSendMessage}
+
+                className="d-flex gap-1 p-2"
+
+                style={{
+                  borderTop: "2px solid #22c55e",
+
+                  background: "#020617"
+                }}
+              >
+
+                <input
+                  type="text"
+
+                  value={message}
+
+                  onChange={(event) => setMessage(event.target.value)}
+
+                  placeholder="type..."
+
+                  disabled={!isAlive}
+
+                  className="form-control form-control-sm"
+
+                  style={{
+                    background: "#020617",
+
+                    border: "2px solid #38bdf8",
+
+                    color: "#e5e7eb",
+
+                    fontSize: "12px",
+
+                    minWidth: 0
+                  }}
+                />
+
+                <button
+                  type="submit"
+
+                  disabled={isSending || !message.trim() || !isAlive}
+
+                  className="btn btn-sm arcade"
+
+                  style={{
+                    background: "#22c55e",
+
+                    border: "2px solid #16a34a",
+
+                    color: "#020617",
+
+                    fontSize: "11px",
+
+                    boxShadow: "2px 2px 0px #16a34a",
+
+                    fontWeight: "bold"
+                  }}
+                >
+                  {isSending ? "..." : "SEND"}
+                </button>
+
+              </form>
+
+            </div>
           </div>
         </div>
       </div>

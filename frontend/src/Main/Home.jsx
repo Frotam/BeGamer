@@ -44,7 +44,7 @@ function Home() {
       localStorage.removeItem("pendingroom");
       
       await joinRoom(roomId, name);
-      roomInput.current.value="";
+     
       navigate(`/rooms/${roomId}`);
     } catch (err) {
       setActionMessage("");
@@ -67,7 +67,6 @@ function Home() {
 
       localStorage.setItem("username", name);
 
-      console.log("created",roomId);
       await createRoom(roomId, name);
       
 
@@ -159,10 +158,11 @@ function Home() {
 
             <button className="game-btn mine" onClick={handleJoin}>
               Join
+              <span className="pixel-runner"></span>
             </button>
           </div>
 
-          <button className="game-btn host-btn mine" onClick={handleCreateRoom}>
+          <button className="game-btn host-btn arcade" onClick={handleCreateRoom}>
             Host Game
           </button>
 

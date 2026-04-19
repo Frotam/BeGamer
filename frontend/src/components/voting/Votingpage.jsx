@@ -143,8 +143,8 @@ function Votingpage({ data }) {
     <SkyBackground>
       <div className="pregame-layout">
         <div className="sky-panel pregame-panel voting-page">
-          <span className="sky-kicker arcade">Pre-Game Vote</span>
-          <h1 className="arcade">Vote for a topic</h1>
+          <span className="sky-kicker arcade" style={{color:"#FF3737"}}>Pre-Game Vote</span>
+          <h1 className="arcade" style={{color:"#E87F24"}}>Vote for a topic</h1>
           <div className="vote-timer">{timeLeft}s</div>
 
           <VotingTopicList

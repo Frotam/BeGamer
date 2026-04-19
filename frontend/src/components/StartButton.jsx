@@ -47,8 +47,9 @@ function StartButton({ data }) {
   }
 
   return data.hostId === currentUser.uid ? (
-    <button className="game-btn" onClick={handleStartVoting}>
+    <button className="game-btn arcade" onClick={handleStartVoting}>
       Start voting
+      <span className="pixel-runner"></span>
     </button>
   ) : (
     <Loader message="Waiting for the host..." compact />

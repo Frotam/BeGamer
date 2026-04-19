@@ -21,7 +21,7 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
   createRoom: async (roomId, hostName) => {
 
     const user = getRequiredUser();
-    console.log("currentUser", user);
+    
     
     
     return set(getRoomRef(database, roomId), buildInitialRoomData(user, hostName));
@@ -174,8 +174,7 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
   const user = getRequiredUser();
 
   const snapshot = await getRoomSnapshot(database, roomId);
-  console.log(snapshot);
-  
+ 
 
   // exit early if room doesn't exist
   if (!snapshot.exists()) {

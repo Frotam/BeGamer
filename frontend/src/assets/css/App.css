@@ -71,7 +71,7 @@
 }
 @font-face {
   font-family: "GameFont";
-  src: url("/public/Fonts/PressStart2P-vaV7.ttf") format("truetype");
+  src: url("/Fonts/PressStart2P-vaV7.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }

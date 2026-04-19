@@ -49,16 +49,79 @@
     filter: invert(1) brightness(2);
   }
 }
+.chat-panel{
+  display:flex;
+  flex-direction:column;
+  
+  width:100%;
+  max-width:100%;
+  
+  height:100%;
+  min-height:0; /* important for flex scroll */
+
+  border-left:1px solid #eee;
+  background:#fff;
+}
+
+/* header stays fixed */
+.chat-panel-header{
+  flex-shrink:0;
+  padding:12px 16px;
+  border-bottom:1px solid #eee;
+}
+
+/* scrollable messages area */
+.chat-messages{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+
+  padding:12px 16px;
+
+  min-height:0; /* VERY important */
+  max-width:100%;
+
+  word-break:break-word;
+}
+
+/* prevent long text stretching page */
+.chat-message{
+  margin-bottom:8px;
+  line-height:1.4;
+  word-wrap:break-word;
+  overflow-wrap:break-word;
+}
+
+/* input stays fixed at bottom */
+.chat-form{
+  flex-shrink:0;
+  display:flex;
+  gap:8px;
+  padding:12px;
+  border-top:1px solid #eee;
+  background:white;
+}
+
+.chat-input{
+  flex:1;
+  min-width:0; /* prevents overflow */
+  padding:8px;
+}
+
+.chat-send-btn{
+  flex-shrink:0;
+  padding:8px 14px;
+}
 
 @font-face {
   font-family: "GameFont";
-  src: url("/public/Fonts/PressStart2P-vaV7.ttf") format("truetype");
+  src: url("/Fonts/PressStart2P-vaV7.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }
 @font-face {
   font-family: "Minecraft";
-  src: url("/public/Fonts/Minecraftchmc-dBlX.ttf") format("truetype");
+  src: url("/Fonts/Minecraftchmc-dBlX.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }
@@ -130,6 +193,61 @@ code {
   word-spacing: 10%;
 }
 
+.pixel-btn{
+  position:relative;
+  padding:12px 26px;
+  border:none;
+  background:#111;
+  color:#fff;
+  font-family:monospace;
+  border:3px solid #fff;
+  image-rendering: pixelated;
+  overflow:hidden;
+}
+
+/* pixel character */
+.pixel-runner{
+  position:absolute;
+  bottom:0;
+  left:-40px;
+
+  width:32px;
+  height:32px;
+
+  background:url("/pixel-cat-sprite.png");
+  background-size:192px 32px; /* width = frameWidth * frames */
+
+  animation:runSprite .6s steps(6) infinite;
+}
+
+.pixel-btn:hover .pixel-runner{
+  animation:
+    runSprite .6s steps(6) infinite,
+    moveAcross 1s linear forwards;
+}
+
+/* sprite frames */
+@keyframes runSprite{
+  from{ background-position:0 }
+  to{ background-position:-192px }
+}
+
+/* movement */
+@keyframes moveAcross{
+  from{ left:-40px }
+  to{ left:110% }
+}
+.pixel-btn{
+  transition: transform .12s steps(2);
+}
+
+.pixel-btn:hover{
+  transform:translateY(-4px);
+}
+
+.pixel-btn:active{
+  transform:translateY(2px);
+}
 .home-container {
   min-height: 100svh;
   display: flex;
@@ -174,47 +292,20 @@ code {
   outline: 2px solid rgba(73, 156, 230, 0.35);
   outline-offset: 2px;
 }
-.game-btn{
-   
-  background:#f09429;
 
-  color:white;
-
-  border:none;
-
-  padding:12px 22px;
-
-  border-radius:6px;
-
-  font-weight:600;
-
-  cursor:pointer;
-
-  display:flex;
-
-  justify-content:center;
-
-  align-items:center;
-
-  transition:0.15s;
-}
 
 
 /* white layer behind button */
  
 button:hover{
-  background-color: black;
+  /* background-color: black; */
   transform: translateY(-3px) scale(1.03);
   box-shadow: 0 8px 18px rgba(0,0,0,0.35);
   font-size:xx-large;
 }
 
 /* press effect */
-.game-btn:active{
 
-  transform:translate(0px,0px);
-
-}
 
 .host-btn {
   width: 220px;
@@ -832,6 +923,100 @@ button:hover{
   align-items: center;
 }
 
+.game-btn{
+
+  background:#f09429;
+  font-family: 'arcade', sans-serif;
+
+  color:white;
+
+  border:2px solid #000;
+
+  padding:12px 22px;
+
+  border-radius:6px;
+
+  font-weight:600;
+
+  cursor:pointer;
+
+  display:flex;
+
+  justify-content:center;
+
+  align-items:center;
+
+  gap:6px;
+
+  font-family:monospace;
+
+  letter-spacing:0.5px;
+
+  /* pixel shadow */
+  box-shadow:
+    3px 3px 0px #000,
+    0 0 0px #f09429;
+
+  transition:
+    transform 0.12s steps(2),
+    box-shadow 0.12s steps(2),
+    filter 0.2s;
+
+}
+
+
+/* hover = game hover lift */
+.game-btn:hover{
+
+  transform:translate(-2px,-2px);
+
+  box-shadow:
+    5px 5px 0px #000,
+    0 0 12px #f09429aa;
+
+  filter:brightness(1.05);
+
+}
+
+
+/* click press effect */
+.game-btn:active{
+
+  transform:translate(2px,2px);
+
+  box-shadow:
+    1px 1px 0px #000;
+
+}
+
+
+/* optional glow pulse */
+.game-btn:hover{
+
+  animation:pixelGlow 0.8s steps(4) infinite alternate;
+
+}
+
+
+@keyframes pixelGlow{
+
+  from{
+
+    box-shadow:
+      5px 5px 0px #000,
+      0 0 6px #f09429aa;
+
+  }
+
+  to{
+
+    box-shadow:
+      5px 5px 0px #000,
+      0 0 16px #f09429cc;
+
+  }
+
+}
 .rightpage-actions .game-btn {
   flex: 1;
   min-width: 180px;
