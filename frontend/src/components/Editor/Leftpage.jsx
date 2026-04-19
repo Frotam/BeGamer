@@ -42,11 +42,11 @@ export default function Leftpage({ data, taskData }) {
       {/* ROLE */}
       <div>
 
-        <h3 style={{ marginBottom: 6 }}>
+        <h3 className="arcade" style={{ marginBottom: 6 }}>
           Your Role
         </h3>
 
-        <div
+        <div className="arcade"
           style={{
             padding: "6px 10px",
             borderRadius: 6,
@@ -90,76 +90,57 @@ export default function Leftpage({ data, taskData }) {
       {/* TASKS */}
       <div>
 
-        <h3 style={{ marginBottom: 8 }}>
+        <h3 className="arcade" style={{ marginBottom: 8,color:"brown" }}>
           Your Tasks
         </h3>
 
         {
-
           visibleTasks.length > 0
             ? (
-
               <ol
+              className="mine"
                 style={{
                   paddingLeft: 18,
+                  marginLeft:10,
                   display: "flex",
                   flexDirection: "column",
                   gap: 6
                 }}
               >
-
                 {
-
                   visibleTasks.map(
                     (task, index) => (
-
                       <li
                         key={index}
                         style={{
-                          lineHeight: 1.4
+                          lineHeight: 1.4,
+                          fontSize:20,
+                          color:"black"
                         }}
                       >
-
                         {task}
-
                       </li>
-
-                    )
+                 )
                   )
-
                 }
-
               </ol>
-
             )
-
             : (
-
               <div
                 style={{ opacity: 0.6 }}
               >
-
                 No tasks assigned yet.
-
               </div>
-
             )
-
         }
-
-      </div>
-     
+  </div>    
       <div>
-
-        <h3 style={{ marginBottom: 8 }}>
+        <h3 className="arcade" style={{ marginBottom: 8 }}>
           Players
         </h3>
-
         {
-
           playersArray.length > 0
             ? (
-
               <div
                 style={{
                   display: "flex",
@@ -167,47 +148,32 @@ export default function Leftpage({ data, taskData }) {
                   gap: 6
                 }}
               >
-
                 {
-
                   playersArray.map(
                     (player) => {
-
                       const isMe =
                         player.uid ===
                         currentUser?.uid;
-
                       return (
-
                         <div
-
                           key={player.uid}
-
                           style={{
-
                             padding: "6px 10px",
-
                             borderRadius: 6,
-
                             background:
                               isMe
                                 ? "#1976d222"
                                 : "#ffffff10",
-
                             border:
                               player.alive === false
                                 ? "1px dashed #aaa"
                                 : "1px solid transparent",
-
                             fontSize: 14,
                             display: "flex",
                             alignItems: "center",
                             gap: 8,
-
                           }}
-
                         >
-
                           <span
                             style={{
                               width: 10,
@@ -217,33 +183,20 @@ export default function Leftpage({ data, taskData }) {
                               display: "inline-block",
                             }}
                           />
-
                           {player.name}
-
                           {
-
                             isMe &&
                             " (You)"
-
                           }
-
                           {
-
                             player.alive === false &&
                             "/"
-
                           }
-
                         </div>
-
                       );
-
                     }
-
                   )
-
                 }
-
               </div>
 
             )

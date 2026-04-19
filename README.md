@@ -1,8 +1,6 @@
 # BeGamer - Coder's AmongUs
 BeGamer is a real-time multiplayer coding game where players collaboratively solve programming challenges while identifying an imposter attempting to sabotage the solution.
 The system combines **real-time state synchronization**, **secure code execution**, and **game theory mechanics** to create a competitive collaborative coding environment.
-
-
 # Core Concept
 
 Players join a room and are assigned roles:

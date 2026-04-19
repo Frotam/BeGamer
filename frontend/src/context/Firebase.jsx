@@ -1,5 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signInAnonymously,
+  setPersistence,
+  browserLocalPersistence,
+} from "firebase/auth";
 import {
   auth,
   database,
@@ -26,10 +31,22 @@ export const FirebaseProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+      } catch (error) {
+        if (isDev) {
+          console.warn("[Firebase debug] Failed to set auth persistence:", error);
+        }
+      }
+    };
+
+    initializeAuth();
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         if (isDev) {
-          console.log("[Firebase debug] Auth ready", {
+          ("[Firebase debug] Auth ready", {
             uid: user.uid,
             isAnonymous: user.isAnonymous,
             ...firebaseDebugConfig,
@@ -46,7 +63,7 @@ export const FirebaseProvider = ({ children }) => {
         const credential = await signInAnonymously(auth);
 
         if (isDev) {
-          console.log("[Firebase debug] Anonymous sign-in success", {
+          ("[Firebase debug] Anonymous sign-in success", {
             uid: credential.user.uid,
             isAnonymous: credential.user.isAnonymous,
             ...firebaseDebugConfig,

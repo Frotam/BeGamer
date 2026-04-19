@@ -31,6 +31,66 @@ const PLAYER_COLORS = [
   "#7c3aed",
 ];
 
+const CODE_RUN_REQUEST_TIMEOUT_MS = 15000;
+const SUPPORTED_CODE_LANGUAGES = new Set(["cpp", "javascript", "python"]);
+
+const getBackendUrl = (fallbackUrl = "http://localhost:5000") => {
+  return import.meta.env.VITE_BACKEND_URL || fallbackUrl;
+};
+
+const parseCodeRunResponse = async (response) => {
+  let result = null;
+
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error("Code runner returned an invalid response.");
+  }
+
+  if (!response.ok) {
+    throw new Error(result?.error || `Code runner failed with status ${response.status}.`);
+  }
+
+  return result;
+};
+
+const runSubmittedCode = async ({ code, language }) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, CODE_RUN_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${getBackendUrl("http://localhost:5001")}/run-code`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code,
+        language,
+      }),
+      signal: controller.signal,
+    });
+
+    const result = await parseCodeRunResponse(response);
+
+    if (!result.success) {
+      throw new Error(result.error || "Compilation failed");
+    }
+
+    return String(result.output || "");
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Code runner timed out.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const pickPlayerColors = (playerIds) => {
   const colors = [...PLAYER_COLORS];
 
@@ -44,7 +104,8 @@ const pickPlayerColors = (playerIds) => {
   );
 };
 
-export const createGameActions = ({ database, getRequiredUser }) => ({
+export const createGameActions = ({ database, getRequiredUser }) => {
+  const actions = {
   startVoting: async (roomId) => {
     const user = getRequiredUser();
     const snapshot = await getRoomSnapshot(database, roomId);
@@ -140,20 +201,48 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       throw new Error("At least 3 players are required to start the game.");
     }
 
-    const randomIndex = Math.floor(Math.random() * playerIds.length);
-    const imposterId = playerIds[randomIndex];
+    // SECURITY FIX: Use server-side imposter selection instead of client-side random
+    // This prevents players from manipulating their role assignment
+    let imposterId;
+    try {
+      const imposterResponse = await fetch(`${getBackendUrl()}/select-imposter`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerIds })
+      });
+
+      if (!imposterResponse.ok) {
+        throw new Error(`Backend returned ${imposterResponse.status}`);
+      }
+
+      const imposterData = await imposterResponse.json();
+      if (!imposterData.success || !imposterData.imposterId) {
+        throw new Error("Failed to get imposter selection from server");
+      }
+
+      imposterId = imposterData.imposterId;
+      ("[SECURITY] Imposter selected by backend:", imposterId);
+    } catch (error) {
+      console.error("[SECURITY] Failed to get imposter from backend, using secure fallback:", error);
+      // Fallback to secure client-side selection if backend is unavailable
+      // Using crypto.getRandomValues for better randomness
+      const randomArray = new Uint32Array(1);
+      crypto.getRandomValues(randomArray);
+      const randomIndex = randomArray[0] % playerIds.length;
+      imposterId = playerIds[randomIndex];
+    }
+
     const assignedColors = pickPlayerColors(playerIds);
-    const updatedPlayers = { ...(room.players || {}) };
+    const playerRoleAndColorUpdates = {};
     let codestateUpdates = {
       "codestate/tasks": {},
     };
 
     playerIds.forEach((playerId) => {
-      updatedPlayers[playerId] = {
-        ...updatedPlayers[playerId],
-        role: playerId === imposterId ? "Imposter" : "Player",
-        color: assignedColors[playerId],
-      };
+      playerRoleAndColorUpdates[`players/${playerId}/role`] =
+        playerId === imposterId ? "Imposter" : "Player";
+      playerRoleAndColorUpdates[`players/${playerId}/color`] =
+        assignedColors[playerId];
     });
 
     if (!hasUsableCode(existingRoomCode)) {
@@ -200,8 +289,8 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       votingdone: true,
       winner,
       imposterId,
-      players: updatedPlayers,
       "codestate/playersCursor": {},
+      ...playerRoleAndColorUpdates,
       ...codestateUpdates,
     });
   },
@@ -226,6 +315,63 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       codeRunRequestedAt: serverTimestamp(),
       codeRunReason: "Round timer ended. Review the current code result.",
     });
+  },
+
+  executeCodeAndResolve: async (roomId) => {
+    const user = getRequiredUser();
+    const snapshot = await getRoomSnapshot(database, roomId);
+    const room = snapshot.val();
+
+    if (!room) {
+      throw new Error("Room not found.");
+    }
+
+    if (room.hostId !== user.uid) {
+      throw new Error("Only the host can execute and resolve the code run.");
+    }
+
+    ensureAlivePlayer(room, user);
+
+    if (room.gameState !== "playing") {
+      throw new Error("Code can only be executed during gameplay.");
+    }
+
+    if (!room.codeRunPending) {
+      throw new Error("There is no pending code review.");
+    }
+
+    const code = normalizeStoredCode(room.codestate?.code || "");
+    const language = String(room.codestate?.language || "").trim().toLowerCase();
+
+    if (!hasUsableCode(code)) {
+      throw new Error("There is no code to execute.");
+    }
+
+    if (!SUPPORTED_CODE_LANGUAGES.has(language)) {
+      throw new Error("Unsupported language.");
+    }
+
+    let output = "";
+
+    try {
+      output = await runSubmittedCode({
+        code,
+        language,
+      });
+    } catch {
+      return update(getRoomRef(database, roomId), {
+        gameState: "meeting",
+        resultMessage: null,
+        codeRunPending: false,
+        codeRunRequestedAt: null,
+        codeRunReason: null,
+        meetingStartedAt: serverTimestamp(),
+        meetingVotes: {},
+        meetingReason: "There was a compilation error while running the code.",
+      });
+    }
+
+    return actions.resolveCodeRun(roomId, output);
   },
 
   startEmergencyMeeting: async (
@@ -254,6 +400,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     const snapshot = await getRoomSnapshot(database, roomId);
     const room = snapshot.val();
 
+
     if (room.hostId !== user.uid) {
       throw new Error("Only the host can resolve the code run.");
     }
@@ -275,12 +422,12 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     }
 
     const snippet = snippetSnap.val();
-    const playerTask = getRoleTaskConfig(snippet.tasks || {}, "player");
-    const imposterTask = getRoleTaskConfig(snippet.tasks || {}, "imposter");
+    const playerTask =getRoleTaskConfig(snippet.tasks || {}, "player");
+  const imposterTask =getRoleTaskConfig(snippet.tasks || {}, "imposter");
 
     const hasPlayerExpectedOutput = getExpectedOutputLines(playerTask).length > 0;
     const hasImposterExpectedOutput = getExpectedOutputLines(imposterTask).length > 0;
-
+(submittedOutput,playerTask.expectedOutput,imposterTask.expectedOutput);
     if (!hasPlayerExpectedOutput || !hasImposterExpectedOutput) {
       throw new Error("Expected outputs are missing for one or more roles.");
     }
@@ -288,7 +435,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     const matchesPlayerOutput = compareOutputs(submittedOutput, playerTask);
     const matchesImposterOutput = compareOutputs(submittedOutput, imposterTask);
 
-    if (matchesPlayerOutput && !matchesImposterOutput) {
+    if (matchesPlayerOutput) {
       return update(getRoomRef(database, roomId), {
         gameState: "crew_win",
         winningTeam: "crew",
@@ -305,7 +452,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       });
     }
 
-    if (matchesImposterOutput && !matchesPlayerOutput) {
+    if (matchesImposterOutput) {
       return update(getRoomRef(database, roomId), {
         gameState: "imposter_win",
         winningTeam: "imposter",
@@ -329,7 +476,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       codeRunReason: null,
       meetingStartedAt: serverTimestamp(),
       meetingVotes: {},
-      meetingReason: "There was sabotage in the current code.",
+      meetingReason: "The output did not match any expected result.",
     });
   },
 
@@ -397,6 +544,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
     const alivePlayerIds = getAlivePlayerIds(room.players || {});
     const resolvedMeetingVotes = { ...(room.meetingVotes || {}) };
     const updatedPlayers = { ...(room.players || {}) };
+    const playerStatusUpdates = {};
     const nextRound = (room.currentRound || 1) + 1;
 
     alivePlayerIds.forEach((playerId) => {
@@ -425,6 +573,8 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
         alive: false,
         status: "dead",
       };
+      playerStatusUpdates[`players/${eliminatedPlayerId}/alive`] = false;
+      playerStatusUpdates[`players/${eliminatedPlayerId}/status`] = "dead";
     }
 
     if (eliminatedPlayerId && eliminatedPlayerId === room.imposterId) {
@@ -441,7 +591,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
         meetingVotes: resolvedMeetingVotes,
         meetingReason: null,
         lastEliminatedId: eliminatedPlayerId,
-        players: updatedPlayers,
+        ...playerStatusUpdates,
       });
     }
 
@@ -464,7 +614,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
         meetingVotes: resolvedMeetingVotes,
         meetingReason: null,
         lastEliminatedId: eliminatedPlayerId,
-        players: updatedPlayers,
+        ...playerStatusUpdates,
       });
     }
 
@@ -483,7 +633,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
         meetingVotes: resolvedMeetingVotes,
         meetingReason: null,
         lastEliminatedId: eliminatedPlayerId,
-        players: updatedPlayers,
+        ...playerStatusUpdates,
       });
     }
 
@@ -500,7 +650,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
       meetingVotes: resolvedMeetingVotes,
       meetingReason: null,
       lastEliminatedId: eliminatedPlayerId,
-      players: updatedPlayers,
+      ...playerStatusUpdates,
     });
   },
 
@@ -663,4 +813,7 @@ export const createGameActions = ({ database, getRequiredUser }) => ({
 
     return update(getRoomRef(database, roomId), buildLobbyResetPayload(room));
   },
-});
+  };
+
+  return actions;
+};

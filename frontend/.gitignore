@@ -10,6 +10,10 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+ARCHITECTURE.md
+LOW_LEVEL_DESIGN.md
+QUICK_REFERENCE.md
+SECURITY_FIX.md
 *.local
 
 # Editor directories and files

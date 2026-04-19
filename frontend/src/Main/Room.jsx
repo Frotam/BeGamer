@@ -1,17 +1,17 @@
 import { useLocation } from "react-router-dom";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useFirebase } from "./context/Firebase";
-import StartButton from "./components/StartButton";
-import Mainlog from "./components/Mainlog";
-import Votingpage from "./components/Votingpage";
-import Loader from "./components/Loader";
-import EmergencyMeetingPage from "./components/EmergencyMeetingPage";
-import SkyBackground from "./components/SkyBackground";
-import RoleRevealPage from "./components/RoleRevealPage";
+import { useFirebase } from "../context/Firebase";
+import StartButton from "../components/StartButton";
+import Mainlog from "../components/Pages/Mainlog";
+import Votingpage from "../components/voting/Votingpage";
+import Loader from "../components/Loader/Loader";
+import EmergencyMeetingPage from "../components/Pages/EmergencyMeetingPage";
+import SkyBackground from "../components/Background/SkyBackground";
+import RoleRevealPage from "../components/Pages/RoleRevealPage";
 import { Button } from "@mantine/core";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import { useToast } from "./context/Toast";
+import { useToast } from "../context/Toast";
 
 const ROLE_REVEAL_DURATION_MS = 4000;
 const ROLE_REVEAL_STORAGE_PREFIX = "begameer_role_reveal_shown";
@@ -34,7 +34,7 @@ function Room() {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { showError, showSuccess } = useToast();
+  const { showError, showSuccess, showInfo } = useToast();
   const { roomid } = useParams();
 
   const {
@@ -57,34 +57,13 @@ function Room() {
   const awaitingResetRef = useRef(false);
   const lastPlayingMarkerRef = useRef(null);
 
+const copyLink = () => {
 
-  const copyLink = () => {
+  const fullUrl = `${window.location.origin}${location.pathname}${location.search}${location.hash}`;
 
-    const fullUrl =
-      window.location.origin +
-      location.pathname +
-      location.search +
-      location.hash;
+  navigator.clipboard.writeText(fullUrl);
 
-    navigator.clipboard.writeText(fullUrl)
-      .then(() => {
-
-        showSuccess(
-          "Room link copied to clipboard.",
-          "Link copied"
-        );
-
-      })
-      .catch(error => {
-
-        showError(
-          error.message ||
-          "Unable to copy the room link."
-        );
-
-      });
-
-  };
+};
 
 
   useEffect(() => {
@@ -140,12 +119,50 @@ function Room() {
     listenRoom,
     navigate,
     registerPresence,
-    roomid
+    roomid,
   ]);
 
+  const hasBlockedBackRef = useRef(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!roomData) return;
 
+    const isActiveGame =
+      roomData.gameState === "playing" ||
+      roomData.gameState === "meeting";
+
+    if (!isActiveGame) return;
+
+    if (!window.history.state || !window.history.state.roomGuard) {
+      window.history.pushState({ roomGuard: true }, "", window.location.href);
+    }
+
+    const handlePopState = () => {
+      if (
+        roomData.gameState === "playing" ||
+        roomData.gameState === "meeting"
+      ) {
+        window.history.pushState({ roomGuard: true }, "", window.location.href);
+
+        if (!hasBlockedBackRef.current) {
+          hasBlockedBackRef.current = true;
+          showInfo(
+            "Back navigation is disabled while the game is active.",
+            "Stay in game"
+          );
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [roomData?.gameState, roomid, showInfo]);
+
+  useEffect(() => {
     if (!roomData || !currentUser) return;
 
     if (
@@ -261,10 +278,6 @@ function Room() {
 
     handledEndingRef.current = endingKey;
 
-    if (roomData.hostId !== currentUser.uid) {
-      return;
-    }
-
     const timeout = setTimeout(() => {
       autoResetLobbyAfterGameEnd(roomid).catch(error => {
         console.error(
@@ -291,11 +304,9 @@ function Room() {
     if (!roomData?.resetAt || !awaitingResetRef.current) {
       return;
     }
-
     if (handledResetRef.current === roomData.resetAt) {
       return;
     }
-
     handledResetRef.current = roomData.resetAt;
     awaitingResetRef.current = false;
     handledEndingRef.current = null;
@@ -303,8 +314,6 @@ function Room() {
     clearRoleRevealStorage(roomid);
 
   }, [roomData?.resetAt, roomid]);
-
-
   if (!authReady)
     return <Loader message="Preparing your room..." />;
 
@@ -313,10 +322,6 @@ function Room() {
 
   if (!roomData)
     return <Loader message="Joining room..." />;
-
-
-  // GAME SCREENS
-
   if (roomData.gameState === "playing") {
 
     if (showRoleReveal) {
@@ -332,12 +337,8 @@ function Room() {
       );
 
     }
-
     return <Mainlog data={roomData} />;
-
   }
-
-
   if (roomData.gameState === "voting")
     return <Votingpage data={roomData} />;
 
@@ -505,7 +506,6 @@ function Room() {
     color:"#f59e0b",
 
     letterSpacing:"2px",
-
    textShadow:`
   0 1px 2px rgba(0,0,0,0.35),
   0 3px 6px rgba(0,0,0,0.18)
@@ -514,75 +514,47 @@ function Room() {
 >
   Room Lobby
 </span>
-
-
           <h1
             className="mine"
             style={{
-
               color:"#2f80ff",
-
               letterSpacing:"1.6px",
-
               lineHeight:"1.45",
-
               fontWeight:"700",
-
               textShadow:`
                 0 0 3px rgba(80,140,255,0.35),
-                0 0 8px rgba(40,100,255,0.18)
-              `
+                0 0 8px rgba(40,100,255,0.18)   `
             }}
           >
-
             Gather the crew, get everyone ready,
             and let the host kick off voting.
-
             <Button
               onClick={copyLink}
               className="mine m-2"
             >
-
               <i className="bi bi-clipboard"></i>
-
             </Button>
-
           </h1>
-
-
-
           <div
             className="player-list"
             role="list"
           >
-
             {
-
               roomData.players
-
                 ? Object
                     .values(roomData.players)
                     .map(player => (
-
                       <div
                         key={player.uid}
-
                         className="player-chip mine"
-
                         style={{
-
                           fontSize:"24px",
-
                           fontWeight:"bold",
-
                           display:"flex",
-
                           alignItems:"center",
-
                           gap:"8px"
                         }}
                       >
-
                         <span
                           style={{
                             width: 12,
@@ -592,14 +564,9 @@ function Room() {
                             display: "inline-block",
                           }}
                         />
-
                         {player.name}
-
-
                         {
-
                           player.uid === roomData.hostId && (
-
                             <i
                               className="bi bi-crown-fill"
                               style={{
@@ -607,38 +574,20 @@ function Room() {
                                 color:"#ffd700"
                               }}
                             />
-
                           )
-
                         }
-
                       </div>
-
                     ))
-
                 : <p>No players yet</p>
-
             }
-
           </div>
-
-
-
           <div className="pregame-actions">
-
             <StartButton data={roomData} />
-
           </div>
-
-
         </div>
-
       </div>
-
     </SkyBackground>
-
   );
-
 }
 
 export default Room;

@@ -1,5 +1,5 @@
 import "./sky-background.css";
-import cloudImage from "../assets/sky-cloud.png";
+import cloudImage from "../../assets/sky-cloud.png";
 
 const clouds = [
   { id: 1, top: "2.5%", width: "15rem", duration: "72s", delay: "-18s", opacity: 0.68 },
