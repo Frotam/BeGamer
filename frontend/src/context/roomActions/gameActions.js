@@ -351,10 +351,25 @@ export const createGameActions = ({ database, getRequiredUser }) => {
       throw new Error("Unsupported language.");
     }
 
-    const output = await runSubmittedCode({
-      code,
-      language,
-    });
+    let output = "";
+
+    try {
+      output = await runSubmittedCode({
+        code,
+        language,
+      });
+    } catch {
+      return update(getRoomRef(database, roomId), {
+        gameState: "meeting",
+        resultMessage: null,
+        codeRunPending: false,
+        codeRunRequestedAt: null,
+        codeRunReason: null,
+        meetingStartedAt: serverTimestamp(),
+        meetingVotes: {},
+        meetingReason: "There was sabotage in the current code.",
+      });
+    }
 
     return actions.resolveCodeRun(roomId, output);
   },
@@ -374,9 +389,14 @@ export const createGameActions = ({ database, getRequiredUser }) => {
     }
 
     return update(getRoomRef(database, roomId), {
-      codeRunPending: true,
-      codeRunRequestedAt: serverTimestamp(),
-      codeRunReason: reason,
+      gameState: "meeting",
+      resultMessage: null,
+      codeRunPending: false,
+      codeRunRequestedAt: null,
+      codeRunReason: null,
+      meetingStartedAt: serverTimestamp(),
+      meetingVotes: {},
+      meetingReason: reason,
     });
   },
 
