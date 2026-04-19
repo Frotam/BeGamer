@@ -12,6 +12,7 @@ import RoleRevealPage from "../components/Pages/RoleRevealPage";
 import { Button } from "@mantine/core";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import { useToast } from "../context/Toast";
+import { ROOM_MAINTENANCE_INTERVAL_MS } from "../context/roomActions";
 
 const ROLE_REVEAL_DURATION_MS = 4000;
 const ROLE_REVEAL_STORAGE_PREFIX = "begameer_role_reveal_shown";
@@ -34,7 +35,7 @@ function Room() {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { showError, showSuccess, showInfo } = useToast();
+  const { showInfo } = useToast();
   const { roomid } = useParams();
 
   const {
@@ -43,8 +44,8 @@ function Room() {
     joinRoom,
     listenRoom,
     registerPresence,
+    runRoomInactivityMaintenance,
     syncRoomState,
-    resetRoomForReplay,
     autoResetLobbyAfterGameEnd,
   } = useFirebase();
 
@@ -56,6 +57,8 @@ function Room() {
   const handledResetRef = useRef(null);
   const awaitingResetRef = useRef(false);
   const lastPlayingMarkerRef = useRef(null);
+  const isCurrentUserRoomPlayer =
+    Boolean(currentUser?.uid && roomData?.players?.[currentUser.uid]);
 
 const copyLink = () => {
 
@@ -120,6 +123,38 @@ const copyLink = () => {
     navigate,
     registerPresence,
     roomid,
+  ]);
+
+  useEffect(() => {
+    if (!isCurrentUserRoomPlayer) {
+      return;
+    }
+
+    let stopped = false;
+
+    const runMaintenance = () => {
+      runRoomInactivityMaintenance(roomid).catch(error => {
+        if (!stopped) {
+          console.error("Failed to run room maintenance:", error);
+        }
+      });
+    };
+
+    runMaintenance();
+
+    const interval = setInterval(
+      runMaintenance,
+      ROOM_MAINTENANCE_INTERVAL_MS
+    );
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, [
+    isCurrentUserRoomPlayer,
+    roomid,
+    runRoomInactivityMaintenance,
   ]);
 
   const hasBlockedBackRef = useRef(false);

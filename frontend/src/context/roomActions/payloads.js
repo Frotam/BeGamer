@@ -3,6 +3,7 @@ import { defaultTopics } from "./constants.js";
 import { buildResetPlayers } from "./utils.js";
 
 export const buildInitialRoomData = (user, hostName) => {
+  console.log("Building data...");
   return {
     createdAt: Date.now(),
     hostId: user.uid,
@@ -12,6 +13,7 @@ export const buildInitialRoomData = (user, hostName) => {
     resultMessage: null,
     gameEndedAt: null,
     resetAt: null,
+    emptySince: null,
     roundStartedAt: null,
     votingStartedAt: null,
     currentRound: 0,
@@ -33,6 +35,7 @@ export const buildInitialRoomData = (user, hostName) => {
         status: "alive",
         alive: true,
         role: "Player",
+        connectedAt: Date.now(),
       },
     },
     chat: {},
@@ -69,6 +72,7 @@ export const buildLobbyResetPayload = (room) => {
     imposterId: null,
     gameEndedAt: null,
     resetAt: serverTimestamp(),
+    emptySince: null,
     players: buildResetPlayers(room?.players || {}),
     chat: {},
     codestate: {

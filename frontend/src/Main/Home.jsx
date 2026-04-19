@@ -67,7 +67,9 @@ function Home() {
 
       localStorage.setItem("username", name);
 
+      console.log("created",roomId);
       await createRoom(roomId, name);
+      
 
       navigate(`/rooms/${roomId}`);
     } catch (err) {

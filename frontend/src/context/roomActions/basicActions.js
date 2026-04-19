@@ -1,4 +1,8 @@
-import { get, onDisconnect, onValue, push, ref, set, update, serverTimestamp } from "firebase/database";
+import { get, onDisconnect, onValue, push, ref, remove, set, update, serverTimestamp } from "firebase/database";
+import {
+  EMPTY_ROOM_DESTROY_TIMEOUT_MS,
+  PLAYER_INACTIVITY_TIMEOUT_MS,
+} from "./constants.js";
 import { buildInitialRoomData, buildLobbyResetPayload } from "./payloads.js";
 import { getRoomRef, getRoomSnapshot, getSnippetRef } from "./refs.js";
 import {
@@ -15,7 +19,11 @@ import {
 
 export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
   createRoom: async (roomId, hostName) => {
+
     const user = getRequiredUser();
+    console.log("currentUser", user);
+    
+    
     return set(getRoomRef(database, roomId), buildInitialRoomData(user, hostName));
   },
 
@@ -220,12 +228,103 @@ export const createBasicRoomActions = ({ database, getRequiredUser }) => ({
   registerPresence: async (roomId) => {
     const user = getRequiredUser();
     const presenceRef = ref(database, `rooms/${roomId}/presence/${user.uid}`);
+    const disconnectPresence = onDisconnect(presenceRef);
 
-    await set(presenceRef, {
+    await disconnectPresence.set({
+      connected: false,
       connectedAt: Date.now(),
+      lastChangedAt: serverTimestamp(),
     });
 
-    await onDisconnect(presenceRef).remove();
+    await set(presenceRef, {
+      connected: true,
+      connectedAt: Date.now(),
+      lastChangedAt: serverTimestamp(),
+    });
+  },
+
+  runRoomInactivityMaintenance: async (roomId) => {
+    const user = getRequiredUser();
+    const snapshot = await getRoomSnapshot(database, roomId);
+    const room = snapshot.val();
+    const players = room?.players || {};
+    const currentPlayer = players[user.uid];
+
+    if (!currentPlayer) {
+      throw new Error("Only room players can run room maintenance.");
+    }
+
+    const now = Date.now();
+    const presence = room?.presence || {};
+    const updates = {};
+    const playerIds = Object.keys(players);
+    const stalePlayerIds = playerIds.filter((playerId) => {
+      if (playerId === user.uid) return false;
+
+      const playerPresence = presence[playerId];
+
+      if (!playerPresence) {
+        return false;
+      }
+
+      if (playerPresence.connected !== false) {
+        return false;
+      }
+
+      const lastChangedAt = Number(playerPresence.lastChangedAt || 0);
+
+      return lastChangedAt > 0 && now - lastChangedAt >= PLAYER_INACTIVITY_TIMEOUT_MS;
+    });
+
+    stalePlayerIds.forEach((playerId) => {
+      updates[`players/${playerId}`] = null;
+      updates[`presence/${playerId}`] = null;
+      updates[`votes/${playerId}`] = null;
+      updates[`meetingVotes/${playerId}`] = null;
+      updates[`codestate/playersCursor/${playerId}`] = null;
+    });
+
+    const remainingPlayerIds = playerIds.filter(
+      (playerId) => !stalePlayerIds.includes(playerId)
+    );
+
+    if (
+      stalePlayerIds.includes(room.hostId) &&
+      remainingPlayerIds.length > 0
+    ) {
+      const [nextHostId] = remainingPlayerIds.sort((leftId, rightId) => {
+        const leftConnectedAt = Number(players[leftId]?.connectedAt || 0);
+        const rightConnectedAt = Number(players[rightId]?.connectedAt || 0);
+
+        return leftConnectedAt - rightConnectedAt;
+      });
+
+      updates.hostId = nextHostId;
+    }
+
+    if (remainingPlayerIds.length === 0) {
+      const emptySince = Number(room.emptySince || 0);
+
+      if (emptySince > 0 && now - emptySince >= EMPTY_ROOM_DESTROY_TIMEOUT_MS) {
+        await remove(getRoomRef(database, roomId));
+        return { removedPlayers: stalePlayerIds, destroyedRoom: true };
+      }
+
+      updates.emptySince = emptySince || serverTimestamp();
+    } else if (room.emptySince) {
+      updates.emptySince = null;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return { removedPlayers: [], destroyedRoom: false };
+    }
+
+    await update(getRoomRef(database, roomId), updates);
+
+    return {
+      removedPlayers: stalePlayerIds,
+      destroyedRoom: false,
+    };
   },
 
   voteForTopic: async (roomId, topicId) => {
