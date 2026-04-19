@@ -469,18 +469,14 @@ export const createGameActions = ({ database, getRequiredUser }) => {
     }
 
     return update(getRoomRef(database, roomId), {
-      gameState: "draw",
-      winningTeam: null,
-      resultMessage:
-        "No one wins because the output did not match the player or imposter target.",
-      gameEndedAt: serverTimestamp(),
+      gameState: "meeting",
+      resultMessage: null,
       codeRunPending: false,
       codeRunRequestedAt: null,
       codeRunReason: null,
-      roundStartedAt: null,
-      meetingStartedAt: null,
+      meetingStartedAt: serverTimestamp(),
       meetingVotes: {},
-      meetingReason: null,
+      meetingReason: "The output did not match any expected result.",
     });
   },
 
