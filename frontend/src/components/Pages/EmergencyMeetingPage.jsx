@@ -6,11 +6,13 @@ import { useVotingTimer } from "../voting/useVotingTimer";
 import { MEETING_DURATION_MS } from "../../context/roomActions";
 import { useToast } from "../../context/Toast";
 import SkyBackground from "../Background/SkyBackground";
+import { useSessionUser } from "../../context/sessionUser";
 
 function EmergencyMeetingPage({ data }) {
   const { roomid } = useParams();
-  const { currentUser, finalizeMeeting, voteInMeeting, sendmessage } = useFirebase();
+  const { finalizeMeeting, voteInMeeting, sendmessage } = useFirebase();
   const { showError } = useToast();
+  const currentUser = useSessionUser();
   const [timeLeft, setTimeLeft] = useState(Math.ceil(MEETING_DURATION_MS / 1000));
   const [isMeetingOpen, setIsMeetingOpen] = useState(true);
   const [isFinishing, setIsFinishing] = useState(false);

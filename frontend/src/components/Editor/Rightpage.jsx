@@ -8,16 +8,17 @@ import {
 import { useVotingTimer } from "../voting/useVotingTimer";
 import { useToast } from "../../context/Toast";
 import Loader from "../Loader/Loader";
+import { useSessionUser } from "../../context/sessionUser";
 
 function Rightpage({ data }) {
 
   const {
-    currentUser,
     executeCodeAndResolve,
     runCode,
     sendmessage,
     startEmergencyMeeting,
   } = useFirebase();
+  const currentUser = useSessionUser();
 
   const { showError } = useToast();
   const { roomid } = useParams();

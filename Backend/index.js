@@ -1,9 +1,11 @@
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const crypto = require("crypto");
+const registerRoom = require("./wss/Main");
 require("dotenv").config();
 const app = express();
 
@@ -413,23 +415,15 @@ app.post("/run-code", (req, res) => {
     return runCpp(code, res);
 
   }
-
-
-
   if (language === "javascript") {
 
     return runJs(code, res);
 
   }
-
   if (language === "python") {
 
     return runPython(code, res);
-
   }
-
-
-
   return res.status(400).json({
 
     success: false,
@@ -458,10 +452,13 @@ app.use((err, req, res, next) => {
 app.get("/", (req, res) => {
   res.send("hello");
 });
-const server = app.listen(PORT, () => {
 
+const server = http.createServer(app);
+
+registerRoom(server);
+
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-
 });
 
 server.on("error", (err) => {

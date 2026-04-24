@@ -1,9 +1,8 @@
 import React from "react";
-import { useFirebase } from "../../context/Firebase";
+import { useSessionUser } from "../../context/sessionUser";
 
 export default function Leftpage({ data, taskData }) {
-
-  const { currentUser } = useFirebase();
+  const currentUser = localStorage.getItem("uid");
 
   const playersArray =
     data?.players
@@ -11,8 +10,8 @@ export default function Leftpage({ data, taskData }) {
       : [];
 
   const currentPlayer =
-    currentUser?.uid
-      ? data?.players?.[currentUser.uid]
+    currentUser
+      ? data?.players?.[currentUser]
       : null;
 
   const role =
@@ -153,7 +152,7 @@ export default function Leftpage({ data, taskData }) {
                     (player) => {
                       const isMe =
                         player.uid ===
-                        currentUser?.uid;
+                        currentUser;
                       return (
                         <div
                           key={player.uid}

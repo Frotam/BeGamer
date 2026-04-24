@@ -1,21 +1,24 @@
 import React, { useState } from "react";
 import { useParams } from "react-router-dom";
-import { useFirebase } from "../context/Firebase";
 import Votingpage from "./voting/Votingpage";
 import Loader from "./Loader/Loader";
 import { useToast } from "../context/Toast";
+import { useSocket } from "../context/Socketcontext";
 
 function StartButton({ data }) {
   const { roomid } = useParams();
-  const { currentUser, startVoting } = useFirebase();
   const { showError } = useToast();
+  const { isConnected, sendMessage } = useSocket();
+
+  const currentUserId = localStorage.getItem("uid");  
+
   const [isStarting, setIsStarting] = useState(false);
 
-  if (!data || !currentUser) {
+  if (!data || !currentUserId) {
     return <Loader message="Loading room..." compact />;
   }
 
-  if (!data.players?.[currentUser.uid]) {
+  if (!data.players?.[currentUserId]) {
     return <Loader message="Joining room..." compact />;
   }
 
@@ -32,10 +35,19 @@ function StartButton({ data }) {
     return <Votingpage data={data} />;
   }
 
-  const handleStartVoting = async () => {
+  const handleStartVoting = () => {
+    if (!isConnected) {
+      showError("Socket not connected");
+      return;
+    }
+
     try {
       setIsStarting(true);
-      await startVoting(roomid);
+
+      sendMessage({
+        type: "startVoting",
+        roomId: roomid,
+      });
     } catch (error) {
       setIsStarting(false);
       showError(error.message);
@@ -46,7 +58,7 @@ function StartButton({ data }) {
     return <Loader message="Starting voting..." compact />;
   }
 
-  return data.hostId === currentUser.uid ? (
+  return data.hostId === currentUserId ? (
     <button className="game-btn" onClick={handleStartVoting}>
       Start voting
     </button>

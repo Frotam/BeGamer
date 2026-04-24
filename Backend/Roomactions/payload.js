@@ -1,11 +1,15 @@
-import { defaultTopics } from "./constants.js";
-import { buildResetPlayers } from "./utils.js";
+const { buildResetPlayers } = require("./utils");
 
-export const buildInitialRoomData = (user, hostName) => {
-  console.log("Building data...");
+const defaultTopics = {
+  "backend(Js)": { label: "Backend (Js)" },
+  "dsa(Cpp)": { label: "DSA (Cpp)" },
+  "dsa(Py)": { label: "DSA (Py)" },
+};
+
+const buildInitialRoomData = (userId, hostName) => {
   return {
     createdAt: Date.now(),
-    hostId: user.uid,
+    hostId: userId,
     winner: null,
     gameState: "lobby",
     winningTeam: null,
@@ -28,8 +32,8 @@ export const buildInitialRoomData = (user, hostName) => {
     votingdone: false,
     votes: {},
     players: {
-      [user.uid]: {
-        uid: user.uid,
+      [userId]: {
+        uid: userId,
         name: hostName,
         status: "alive",
         alive: true,
@@ -49,8 +53,9 @@ export const buildInitialRoomData = (user, hostName) => {
   };
 };
 
-export const buildLobbyResetPayload = (room) => {
+const buildLobbyResetPayload = (room) => {
   return {
+    ...room,
     gameState: "lobby",
     winner: null,
     winningTeam: null,
@@ -70,9 +75,9 @@ export const buildLobbyResetPayload = (room) => {
     votes: {},
     imposterId: null,
     gameEndedAt: null,
-    resetAt: serverTimestamp(),
+    resetAt: Date.now(),
     emptySince: null,
-    players: buildResetPlayers(room?.players || {}),
+    players: buildResetPlayers(room.players || {}),
     chat: {},
     codestate: {
       language: null,
@@ -83,4 +88,9 @@ export const buildLobbyResetPayload = (room) => {
       tasks: {},
     },
   };
+};
+
+module.exports = {
+  buildInitialRoomData,
+  buildLobbyResetPayload,
 };

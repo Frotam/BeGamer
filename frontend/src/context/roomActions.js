@@ -6,4 +6,3 @@ export {
   EMPTY_ROOM_DESTROY_TIMEOUT_MS,
   ROOM_MAINTENANCE_INTERVAL_MS,
 } from "./roomActions/constants.js";
-export { createRoomActions } from "./roomActions/index.js";

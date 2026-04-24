@@ -1,13 +1,13 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useFirebase } from "../context/Firebase";
 import Loader from "../components/Loader/Loader";
 import SkyBackground from "../components/Background/SkyBackground";
-import { ToastProvider, useToast } from "../context/Toast";
+import { useToast } from "../context/Toast";
+import { ensureSessionUser } from "../context/sessionUser";
+import { useSocket } from "../context/Socketcontext";
 
 function Home() {
   const navigate = useNavigate();
-  const { authReady, authError, createRoom, joinRoom } = useFirebase();
   const { showError } = useToast();
 
   const usernameInput = useRef(null);
@@ -15,91 +15,109 @@ function Home() {
 
   const [pendingRoom] = useState(localStorage.getItem("pendingroom") || "");
   const [actionMessage, setActionMessage] = useState("");
+  const [connectionError, setConnectionError] = useState(null);
+
+  const { isConnected, sendMessage, on, off } = useSocket();
+
+  
+  useEffect(() => {
+    const handleRoom = (data) => {
+      navigate(`/rooms/${data.roomId}`);
+    };
+
+    const handleError = (data) => {
+      setActionMessage("");
+      setConnectionError(data.message);
+      showError(data.message);
+    };
+
+    on("roomCreated", handleRoom);
+    on("playerJoined", handleRoom);
+    on("error", handleError);
+
+    return () => {
+      off("roomCreated", handleRoom);
+      off("playerJoined", handleRoom);
+      off("error", handleError);
+    };
+  }, [on, off, navigate, showError]);
 
   const getName = () => {
     const name = usernameInput.current?.value.trim() || "";
-
-    if (!name) {
-      throw new Error("Enter username");
-    }
-
+    if (!name) throw new Error("Enter username");
     return name;
   };
 
-  const handleJoin = async () => {
-    if (!authReady) return;
+  const handleJoin = () => {
+    if (!isConnected) {
+      showError("WebSocket is not connected yet.");
+      return;
+    }
 
     const roomId = roomInput.current?.value.trim() || "";
-    if (!roomId){
-      showError("Room Code is Empty")
-      return 
+    if (!roomId) {
+      showError("Room Code is Empty");
+      return;
     }
-    
+
     try {
       const name = getName();
-      
+      const sessionUser = ensureSessionUser(name);
+
       setActionMessage("Joining room...");
-      
-      localStorage.setItem("username", name);
-      localStorage.removeItem("pendingroom");
-      
-      await joinRoom(roomId, name);
-      roomInput.current.value="";
-      navigate(`/rooms/${roomId}`);
+
+      sendMessage({
+        type: "join",
+        username: name,
+        uid: sessionUser.uid,
+        roomId,
+      });
     } catch (err) {
       setActionMessage("");
       showError(err.message);
     }
   };
 
-  const handleCreateRoom = async () => {
-    if (!authReady) return;
+  const handleCreateRoom = () => {
+    if (!isConnected) {
+      showError("WebSocket is not connected yet.");
+      return;
+    }
 
     try {
       const name = getName();
-       
-      
-      const roomId = Math.random()
-        .toString(36)
-        .substring(2, 8);
+      const sessionUser = ensureSessionUser(name);
 
-      setActionMessage("Creating room...");
-
-      localStorage.setItem("username", name);
-
-      console.log("created",roomId);
-      await createRoom(roomId, name);
-      
-
-      navigate(`/rooms/${roomId}`);
+      sendMessage({
+        type: "createroom",
+        username: name,
+        uid: sessionUser.uid,
+      });
     } catch (err) {
-      setActionMessage("");
       showError(err.message);
     }
   };
 
-  if (!authReady) {
-    if (authError) {
-      return (
-        <SkyBackground>
-          <div className="home-container">
-            <div className="sky-panel home-panel">
-              <h1 className="arcade title" style={{ color: "#ff6f6f" }}>
-                Firebase connection failed
-              </h1>
-              <p className="pregame-copy" style={{ color: "#fff" }}>
-                {authError}
-              </p>
-              <p className="pregame-copy" style={{ color: "#fff" }}>
-                Check your `.env` values and restart the app.
-              </p>
-            </div>
-          </div>
-        </SkyBackground>
-      );
-    }
 
+  if (!isConnected) {
     return <Loader message="Connecting..." />;
+  }
+
+  if (connectionError) {
+    return (
+      <SkyBackground>
+        <div className="home-container">
+          <div className="sky-panel home-panel">
+            <h1 className="arcade title" style={{ color: "#ff6f6f" }}>
+              Connection failed
+            </h1>
+            <p className="pregame-copy" style={{ color: "#fff" }}>
+              {connectionError}
+            </p>
+          </div>
+        </div>
+      </SkyBackground>
+    );
   }
 
   if (actionMessage) {
@@ -110,34 +128,13 @@ function Home() {
     <SkyBackground>
       <div className="home-container">
         <div className="sky-panel home-panel">
-          <h1
-            className="arcade title"
-            style={{
-              color: "#f0942b",
-              textShadow: `
-                0 0 5px #da498a,
-                0 0 10px #da498a,
-                0 0 20px #da498a,
-                0 0 40px #da498a
-              `,
-            }}
-          >
+          <h1 className="arcade title" style={{ color: "#f0942b" }}>
             Don
           </h1>
-          <h1
-            className="arcade title"
-            style={{
-              color: "#da498a",
-              textShadow: `
-                0 0 5px #f0942b,
-                0 0 10px #f0942b,
-                0 0 20px #f0942b,
-                0 0 50px #FFC107
-              `,
-            }}
-          >
+          <h1 className="arcade title" style={{ color: "#da498a" }}>
             Mafia
           </h1>
+
           <p className="arcade subtitle">Sabotage or survive</p>
 
           <input
@@ -165,8 +162,6 @@ function Home() {
           <button className="game-btn host-btn mine" onClick={handleCreateRoom}>
             Host Game
           </button>
-
-          {authError && <p className="error">{authError}</p>}
         </div>
       </div>
     </SkyBackground>

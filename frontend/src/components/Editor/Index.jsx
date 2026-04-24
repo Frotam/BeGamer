@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react'
-import { useFirebase } from '../../context/Firebase';
-import { useParams } from 'react-router-dom';
-import Coder from './Code';
-import Leftpage from './Leftpage.jsx';
-import Rightpage from './Rightpage.jsx';
-import './EditorLayout.css';
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import Coder from "./Code";
+import Leftpage from "./Leftpage.jsx";
+import Rightpage from "./Rightpage.jsx";
+import "./EditorLayout.css";
+import { useSessionUser } from "../../context/sessionUser";
 
 const splitMainSection = (code = "") => {
   const normalizedCode = String(code || "");
@@ -15,65 +15,60 @@ const splitMainSection = (code = "") => {
   }
 
   const startIndex = match.index;
+
   return {
-    editorCode: normalizedCode.slice(0, startIndex).replace(/[\s\n]*$/u, "") + "\n",
+    editorCode:
+      normalizedCode.slice(0, startIndex).replace(/[\s\n]*$/u, "") + "\n",
     hiddenMain: normalizedCode.slice(startIndex),
   };
 };
 
-export default function Index({data}) {
-  const { currentUser, getcode } = useFirebase()
+export default function Index({ data }) {
+  const currentUser = useSessionUser();
+  const { roomid } = useParams();
+
   const [editorCode, setEditorCode] = useState("");
   const [hiddenMain, setHiddenMain] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [taskData, setTaskData] = useState(null);
-  const { roomid } = useParams()
-  const isAlive = currentUser?.uid ? data?.players?.[currentUser.uid]?.alive !== false : true;
-  const canEdit = data?.gameState === "playing" && isAlive && !data?.codeRunPending;
 
+  const isAlive = currentUser?.uid
+    ? data?.players?.[currentUser.uid]?.alive !== false
+    : true;
+
+  const canEdit =
+    data?.gameState === "playing" && isAlive && !data?.codeRunPending;
+
+  
   useEffect(() => {
-    if (!data?.winner) {
-      setTaskData(null);
-      return;
-    }
+    if (!data?.codestate) return;
 
-    const fetchcode = async () => {
-      const hasCode = typeof data?.codestate?.code === "string" && data.codestate.code.trim().length > 0;
-      const hasTaskData = taskData !== null;
+    const { code, language, tasks } = data.codestate;
 
-      if (hasCode && hasTaskData) return;
+    
+    if (typeof code === "string") {
+      const { editorCode: displayCode, hiddenMain: mainSuffix } =
+        splitMainSection(code);
 
-      const val = await getcode(roomid);
-
-      if (!val) return;
-
-      const { editorCode: displayCode, hiddenMain: mainSuffix } = splitMainSection(val.code || "");
-      setEditorCode(displayCode);
-      setHiddenMain(mainSuffix);
-      setLanguage(val.language || "javascript");
-      setTaskData(val.taskData || null);
-    };
-
-    fetchcode();
-  }, [data?.winner, data?.codestate?.code, getcode, roomid, taskData]);
-
-  useEffect(() => {
-    if (typeof data?.codestate?.code === "string") {
-      const { editorCode: displayCode, hiddenMain: mainSuffix } = splitMainSection(data.codestate.code);
       setEditorCode(displayCode);
       setHiddenMain(mainSuffix);
     }
 
-    if (data?.codestate?.language) {
-      setLanguage(data.codestate.language);
+    if (language) {
+      setLanguage(language);
     }
-  }, [data?.codestate?.code, data?.codestate?.language]);
+
+    if (tasks) {
+      setTaskData(tasks);
+    }
+  }, [data?.codestate]);
 
   return (
-      <div className="editor-layout">
+    <div className="editor-layout">
       <div className="editor-sidebar">
-        <Leftpage data={data} taskData={taskData}/>
+        <Leftpage data={data} taskData={taskData} />
       </div>
+
       <div className="editor-main">
         <Coder
           code={editorCode}
@@ -85,10 +80,10 @@ export default function Index({data}) {
           players={data?.players || {}}
         />
       </div>
+
       <div className="editor-sidebar">
-        <Rightpage data= {data}/>
+        <Rightpage data={data} />
       </div>
     </div>
-  )
+  );
 }
- 

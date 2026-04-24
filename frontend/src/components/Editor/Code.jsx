@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import { useParams } from "react-router-dom";
-import { useFirebase } from "../../context/Firebase";
+import { useSocket } from "../../context/Socketcontext";
 import { normalizeStoredCode } from "../../context/roomActions/utils.js";
 
 const sanitizeClassName = (uid) =>
@@ -48,7 +48,7 @@ function Code({
   playerCursors = {},
   players = {},
 }) {
-  const { updatecode, updatecursor } = useFirebase();
+  const { sendMessage } = useSocket();
   const { roomid } = useParams();
 
   const timeoutRef = useRef(null);
@@ -150,7 +150,16 @@ function Code({
       lastCursorRef.current = { line, column };
       clearTimeout(cursorTimeoutRef.current);
       cursorTimeoutRef.current = setTimeout(() => {
-        updatecursor(roomid, { line, column }).catch(() => {});
+
+        sendMessage({
+          type:"updateCursor",
+          roomId:roomid,
+          line,
+          column
+
+        })
+
+        // updatecursor(roomid, { line, column }).catch(() => {});
       }, 200);
     });
   };
@@ -167,7 +176,14 @@ function Code({
 
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      updatecode(roomid, normalizedCode);
+    
+      sendMessage({
+        type:"Updatecode",
+        roomId:roomid,
+        code:normalizedCode
+      })
+
+      // updatecode(roomid, normalizedCode);
     }, 400);
   };
 

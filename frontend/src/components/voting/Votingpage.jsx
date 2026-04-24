@@ -1,28 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useFirebase } from "../../context/Firebase";
 import VotingTopicList from "./VotingTopicList";
 import { useVotingTimer } from "./useVotingTimer";
-import {
-  getTotalPlayers,
-  getTotalVotes,
-} from "./voteUtils";
+import { getTotalPlayers, getTotalVotes } from "./voteUtils";
 import Loader from "../Loader/Loader";
 import SkyBackground from "../Background/SkyBackground";
 import { useToast } from "../../context/Toast";
+import { useSocket } from "../../context/Socketcontext";
 
 const VOTING_DURATION_MS = 15000;
 
 function Votingpage({ data }) {
   const { roomid } = useParams();
-  const {
-    currentUser,
-    finalizeVotingRound,
-    startVoting,
-    voteForTopic,
-    resetRoomForReplay,
-  } = useFirebase();
   const { showError, showSuccess } = useToast();
+  const { isConnected, sendMessage } = useSocket();
+
+  const currentUserId = localStorage.getItem("uid");
 
   const [start, setStart] = useState(true);
   const [totalv, setTotalv] = useState(0);
@@ -30,9 +23,11 @@ function Votingpage({ data }) {
     Math.ceil(VOTING_DURATION_MS / 1000)
   );
   const [isFinishingVote, setIsFinishingVote] = useState(false);
+
   const hasRedirectedRef = useRef(false);
 
-  if (!data?.topics || !currentUser) {
+ 
+  if (!data?.topics || !currentUserId) {
     return <Loader message="Loading topics..." />;
   }
 
@@ -40,12 +35,14 @@ function Votingpage({ data }) {
     return <Loader message="Starting voting..." />;
   }
 
+   
   const votes = Object.values(data.votes || {});
-  const currentVote = data.votes?.[currentUser.uid] || null;
+  const currentVote = data.votes?.[currentUserId] || null;
   const votingEndsAt = data.votingStartedAt + VOTING_DURATION_MS;
-  const isHost = data.hostId === currentUser.uid;
+  const isHost = data.hostId === currentUserId;
   const hasVotes = getTotalVotes(data.votes) > 0;
 
+  // ⏱ Timer
   useVotingTimer({
     isActive: start,
     endTime: votingEndsAt,
@@ -53,17 +50,18 @@ function Votingpage({ data }) {
     onExpire: () => {
       setStart(false);
       setTotalv(getTotalVotes(data.votes));
-      ("Voting ended");
     },
   });
 
+  
   useEffect(() => {
     setStart(true);
     setTotalv(0);
     setTimeLeft(Math.ceil(VOTING_DURATION_MS / 1000));
     setIsFinishingVote(false);
+    hasRedirectedRef.current = false;
   }, [data.votingStartedAt]);
-
+ 
   useEffect(() => {
     if (!data?.votes || !data?.players) return;
 
@@ -71,30 +69,38 @@ function Votingpage({ data }) {
     const totalPlayers = getTotalPlayers(data.players);
 
     if (totalVotes === totalPlayers) {
-      ("Everyone voted");
       setTotalv(totalVotes);
       setStart(false);
     }
   }, [data]);
 
+  
   useEffect(() => {
     if (!data?.players || !data.votingStartedAt) return;
     if (start) return;
     if (hasRedirectedRef.current) return;
+    if (!isHost) return;  
 
     const totalVotes = getTotalVotes(data.votes);
     if (totalVotes > 0) return;
     if (data.gameState !== "voting") return;
 
     const redirectToLobby = async () => {
-      if (!currentUser) return;
+      if (!isConnected) return;
 
       hasRedirectedRef.current = true;
       setIsFinishingVote(true);
 
       try {
-        await resetRoomForReplay(roomid);
-        showSuccess("No votes were found. Redirected to lobby.", "Voting reset");
+        sendMessage({
+          type: "resetRoom",
+          roomId: roomid,
+        });
+
+        showSuccess(
+          "No votes were found. Redirected to lobby.",
+          "Voting reset"
+        );
       } catch (error) {
         showError(error.message);
       } finally {
@@ -103,33 +109,65 @@ function Votingpage({ data }) {
     };
 
     redirectToLobby();
-  }, [currentUser, data, resetRoomForReplay, roomid, showError, showSuccess, start]);
+  }, [
+    data,
+    start,
+    isHost,
+    isConnected,
+    roomid,
+    showError,
+    showSuccess,
+  ]);
+ 
+  const handleFinalize = async () => {
+    if (!isConnected) {
+      showError("Socket not connected");
+      return;
+    }
 
-  const initialize = async () => {
     try {
       setIsFinishingVote(true);
-      await finalizeVotingRound(roomid);
+
+      sendMessage({
+        type: "finalizeVoting",
+        roomId: roomid,
+      });
     } catch (error) {
       setIsFinishingVote(false);
       showError(error.message);
     }
   };
 
+ 
   const handleRestartVoting = async () => {
+    if (!isConnected) {
+      showError("Socket not connected");
+      return;
+    }
+
     try {
       setIsFinishingVote(true);
-      await startVoting(roomid);
+
+      sendMessage({
+        type: "startVoting",
+        roomId: roomid,
+      });
     } catch (error) {
       setIsFinishingVote(false);
       showError(error.message);
     }
   };
 
-  const handleVote = async (topicId) => {
+
+  const handleVote = (topicId) => {
     if (!start) return;
 
     try {
-      await voteForTopic(roomid, topicId);
+      sendMessage({
+        type: "vote",
+        topicId: topicId,
+        roomId: roomid,
+      });
     } catch (error) {
       showError(error.message);
     }
@@ -145,6 +183,7 @@ function Votingpage({ data }) {
         <div className="sky-panel pregame-panel voting-page">
           <span className="sky-kicker arcade">Pre-Game Vote</span>
           <h1 className="arcade">Vote for a topic</h1>
+
           <div className="vote-timer">{timeLeft}s</div>
 
           <VotingTopicList
@@ -156,25 +195,35 @@ function Votingpage({ data }) {
           />
 
           {currentVote && start && (
-            <p className="pregame-copy">You can change your vote before time ends.</p>
+            <p className="pregame-copy">
+              You can change your vote before time ends.
+            </p>
           )}
 
-          {!start && <p className="vote-status">Voting closed. Total players voted: {totalv}</p>}
+          {!start && (
+            <p className="vote-status">
+              Voting closed. Total players voted: {totalv}
+            </p>
+          )}
+
           {!start && !hasVotes && (
             <p className="pregame-copy">
               No votes were found. Redirecting everyone back to the lobby.
             </p>
           )}
+
           {!start && isHost && hasVotes && (
-            <button className="game-btn" onClick={initialize}>
+            <button className="game-btn" onClick={handleFinalize}>
               Start game
             </button>
           )}
+
           {!start && !isHost && hasVotes && (
             <Loader message="Waiting for the host to continue..." />
           )}
+
           {!start && !isHost && !hasVotes && (
-            <Loader message="Waiting for the host to redirect the room to the lobby..." />
+            <Loader message="Waiting for the host to reset the room..." />
           )}
         </div>
       </div>
