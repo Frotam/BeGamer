@@ -192,14 +192,16 @@ const finalizeVotingRound = (roomId, userId, snippet) => {
 const runCode = (roomId, userId, reason = "Round timer ended. Review the current code result.") => {
   const room = getRoomState(roomId);
 
-  if (room.hostId !== userId) {
-    throw new Error("Only the host can run the code.");
+  if (userId) {
+    ensureAlivePlayer(room, userId);
   }
-
-  ensureAlivePlayer(room, userId);
 
   if (room.gameState !== "playing") {
     throw new Error("Code can only be run during gameplay.");
+  }
+
+  if (room.codeRunPending) {
+    return room;
   }
 
   room.codeRunPending = true;
@@ -211,11 +213,9 @@ const runCode = (roomId, userId, reason = "Round timer ended. Review the current
 const resolveCodeRun = (roomId, userId, snippet, submittedOutput) => {
   const room = getRoomState(roomId);
 
-  if (room.hostId !== userId) {
-    throw new Error("Only the host can resolve the code run.");
+  if (userId) {
+    ensureAlivePlayer(room, userId);
   }
-
-  ensureAlivePlayer(room, userId);
 
   if (room.gameState !== "playing") {
     throw new Error("Code results can only be resolved during gameplay.");
@@ -276,11 +276,9 @@ const executeCodeAndResolve = async (roomId, userId, snippet) => {
     throw new Error("Room not found.");
   }
 
-  if (room.hostId !== userId) {
-    throw new Error("Only the host can execute and resolve the code run.");
+  if (userId) {
+    ensureAlivePlayer(room, userId);
   }
-
-  ensureAlivePlayer(room, userId);
 
   if (room.gameState !== "playing") {
     throw new Error("Code can only be executed during gameplay.");

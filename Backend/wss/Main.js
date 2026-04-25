@@ -24,6 +24,7 @@ const {
 
 function registerRoom(server) {
   const wss = new WebSocket.Server({ server });
+  const activeCodeReviews = new Set();
 
   const send = (ws, payload) => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -76,6 +77,39 @@ function registerRoom(server) {
       type: "roomState",
       state: roomObj.state,
     });
+  };
+
+  const runServerCodeReview = async (roomId) => {
+    if (!roomId || activeCodeReviews.has(roomId)) {
+      return;
+    }
+
+    activeCodeReviews.add(roomId);
+
+    try {
+      const room = rooms[roomId]?.state;
+
+      if (!room || room.gameState !== "playing" || !room.codeRunPending) {
+        return;
+      }
+
+      const snippet = await fetchSnippetFromFirebase(room.winner);
+      await executeCodeAndResolve(roomId, null, snippet);
+      broadcastRoomState(roomId);
+    } catch (error) {
+      const room = rooms[roomId]?.state;
+
+      if (room?.codeRunPending) {
+        room.codeRunPending = false;
+        room.codeRunRequestedAt = null;
+        room.codeRunReason = null;
+      }
+
+      broadcastRoomState(roomId);
+      console.error(`Code review failed for room ${roomId}:`, error);
+    } finally {
+      activeCodeReviews.delete(roomId);
+    }
   };
 
   const attachSocketToRoom = (roomId, ws) => {
@@ -258,14 +292,12 @@ function registerRoom(server) {
           runCode(data.roomId, ws.userId);
           broadcastRoomState(data.roomId);
           sendAck(ws, requestId);
+          void runServerCodeReview(data.roomId);
           return;
         }
 
         if (data.type === "executeCodeAndResolve") {
-          const room = rooms[data.roomId]?.state;
-          const snippet = await fetchSnippetFromFirebase(room?.winner);
-          await executeCodeAndResolve(data.roomId, ws.userId, snippet);
-          broadcastRoomState(data.roomId);
+          void runServerCodeReview(data.roomId);
           sendAck(ws, requestId);
           return;
         }
@@ -274,6 +306,7 @@ function registerRoom(server) {
           startEmergencyMeeting(data.roomId, ws.userId, data.reason);
           broadcastRoomState(data.roomId);
           sendAck(ws, requestId);
+          void runServerCodeReview(data.roomId);
           return;
         }
 

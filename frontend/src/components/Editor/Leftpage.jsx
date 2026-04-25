@@ -1,9 +1,13 @@
 import React from "react";
 import { useSessionUser } from "../../context/sessionUser";
+import { useEffect } from "react";
 
 export default function Leftpage({ data, taskData }) {
   const currentUser = localStorage.getItem("uid");
-
+  useEffect(() => {
+  console.log("UPDATED taskData in Leftpage:", taskData);
+}, [taskData]);
+  
   const playersArray =
     data?.players
       ? Object.values(data.players)

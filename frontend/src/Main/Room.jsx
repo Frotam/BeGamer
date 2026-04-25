@@ -1,7 +1,7 @@
 import { useLocation } from "react-router-dom";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useFirebase } from "../context/Firebase";
+ 
 import StartButton from "../components/StartButton";
 import Mainlog from "../components/Pages/Mainlog";
 import Votingpage from "../components/voting/Votingpage";
@@ -38,7 +38,7 @@ function Room() {
   const { showInfo } = useToast();
   const { roomid } = useParams();
   const sessionUser = useSessionUser();
-  const { authReady, autoResetLobbyAfterGameEnd } = useFirebase();
+  
 
   const [roomData, setRoomData] = useState(null);
   const [roomError, setRoomError] = useState("");
@@ -265,18 +265,13 @@ function Room() {
 
     handledEndingRef.current = endingKey;
 
-    const timeout = setTimeout(() => {
-      autoResetLobbyAfterGameEnd(roomid).catch((error) => {
-        console.error("Failed to auto reset lobby:", error);
-        handledEndingRef.current = null;
-      });
-    }, 5000);
+    
 
     return () => clearTimeout(timeout);
   }, [
     roomData?.gameState,
     roomData?.gameEndedAt,
-    autoResetLobbyAfterGameEnd,
+   
     roomid,
   ]);
 
@@ -293,8 +288,7 @@ function Room() {
     setShowRoleReveal(false);
     clearRoleRevealStorage(roomid);
   }, [roomData?.resetAt, roomid]);
-  if (!authReady) return <Loader message="Preparing your room..." />;
-
+  
   if (roomError) return <h2>{roomError}</h2>;
 
   if (!roomData) return <Loader message="Joining room..." />;

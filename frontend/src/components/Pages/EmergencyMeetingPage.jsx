@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useFirebase } from "../../context/Firebase";
+import { useSocket } from "../../context/Socketcontext";
 import Loader from "../Loader/Loader";
 import { useVotingTimer } from "../voting/useVotingTimer";
 import { MEETING_DURATION_MS } from "../../context/roomActions";
@@ -10,7 +10,7 @@ import { useSessionUser } from "../../context/sessionUser";
 
 function EmergencyMeetingPage({ data }) {
   const { roomid } = useParams();
-  const { finalizeMeeting, voteInMeeting, sendmessage } = useFirebase();
+  const { sendRequest } = useSocket();
   const { showError } = useToast();
   const currentUser = useSessionUser();
   const [timeLeft, setTimeLeft] = useState(Math.ceil(MEETING_DURATION_MS / 1000));
@@ -114,24 +114,31 @@ function EmergencyMeetingPage({ data }) {
 
     if (!isHost) return;
 
-    const timeout = setTimeout(async () => {
-      try {
-        setIsFinishing(true);
-        await finalizeMeeting(roomid);
-      } catch (error) {
-        setIsFinishing(false);
-        showError(error.message);
-      }
-    }, 2000);
+      const timeout = setTimeout(async () => {
+        try {
+          setIsFinishing(true);
+          await sendRequest({
+            type: "finalizeMeeting",
+            roomId: roomid,
+          });
+        } catch (error) {
+          setIsFinishing(false);
+          showError(error.message);
+        }
+      }, 2000);
 
     return () => clearTimeout(timeout);
-  }, [data.meetingVotes, data.players, finalizeMeeting, isHost, isMeetingOpen, roomid]);
+  }, [data.meetingVotes, data.players, isHost, isMeetingOpen, roomid, sendRequest, showError]);
 
   const handleVote = async (targetId) => {
     if (!isMeetingOpen || !isAlive) return;
 
     try {
-      await voteInMeeting(roomid, targetId);
+      await sendRequest({
+        type: "voteInMeeting",
+        roomId: roomid,
+        targetId,
+      });
     } catch (error) {
       showError(error.message);
     }
@@ -144,7 +151,11 @@ function EmergencyMeetingPage({ data }) {
 
     try {
       setIsSending(true);
-      await sendmessage(roomid, message);
+      await sendRequest({
+        type: "sendChat",
+        roomId: roomid,
+        message,
+      });
       setMessage("");
     } catch (error) {
       showError(error.message);

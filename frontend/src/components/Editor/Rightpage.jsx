@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useFirebase } from "../../context/Firebase";
+import { useSocket } from "../../context/Socketcontext";
 import {
   PLAYING_ROUND_DURATION_MS,
   TOTAL_GAME_ROUNDS,
@@ -11,13 +11,7 @@ import Loader from "../Loader/Loader";
 import { useSessionUser } from "../../context/sessionUser";
 
 function Rightpage({ data }) {
-
-  const {
-    executeCodeAndResolve,
-    runCode,
-    sendmessage,
-    startEmergencyMeeting,
-  } = useFirebase();
+  const { sendRequest } = useSocket();
   const currentUser = useSessionUser();
 
   const { showError } = useToast();
@@ -25,13 +19,11 @@ function Rightpage({ data }) {
 
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [isResolvingCode, setIsResolvingCode] = useState(false);
   const [timeLeft, setTimeLeft] = useState(
     Math.ceil(PLAYING_ROUND_DURATION_MS / 1000)
   );
 
   const autoRunTriggeredRef = useRef(false);
-  const codeResolveTriggeredRef = useRef(false);
   const chatContainerRef = useRef(null);
   const isAtBottomRef = useRef(true);
 
@@ -39,9 +31,6 @@ function Rightpage({ data }) {
     currentUser?.uid
       ? data?.players?.[currentUser.uid]?.alive !== false
       : false;
-
-  const isHost =
-    data?.hostId === currentUser?.uid;
 
   const isCodeReviewPending =
     Boolean(data?.codeRunPending);
@@ -105,17 +94,18 @@ function Rightpage({ data }) {
     onTimeChange: setTimeLeft,
 
     onExpire: async () => {
-
-      if (!isHost) return;
+      if (!isAlive) return;
 
       if (autoRunTriggeredRef.current)
         return;
 
       autoRunTriggeredRef.current = true;
 
-      try {
-
-        await runCode(roomid);
+        try {
+        await sendRequest({
+          type: "runCode",
+          roomId: roomid,
+        });
 
       } catch (error) {
 
@@ -127,43 +117,11 @@ function Rightpage({ data }) {
 
   });
 
-
-
   useEffect(() => {
-
     if (!isCodeReviewPending) {
-      codeResolveTriggeredRef.current = false;
-      return;
+      autoRunTriggeredRef.current = false;
     }
-
-    if (!isHost) return;
-
-    if (codeResolveTriggeredRef.current)
-      return;
-
-    codeResolveTriggeredRef.current = true;
-
-    const runAndResolveCode = async () => {
-      try {
-
-        setIsResolvingCode(true);
-
-        await executeCodeAndResolve(roomid);
-
-      } catch (error) {
-
-        showError(error.message);
-
-      } finally {
-
-        setIsResolvingCode(false);
-
-      }
-    };
-
-    runAndResolveCode();
-
-  }, [executeCodeAndResolve, isCodeReviewPending, isHost, roomid, showError]);
+  }, [isCodeReviewPending]);
 
 
 
@@ -180,14 +138,15 @@ function Rightpage({ data }) {
       )
         return;
 
-      try {
+        try {
 
         setIsSending(true);
 
-        await sendmessage(
-          roomid,
-          message
-        );
+        await sendRequest({
+          type: "sendChat",
+          roomId: roomid,
+          message,
+        });
 
         setMessage("");
 
@@ -209,9 +168,10 @@ function Rightpage({ data }) {
 
       try {
 
-        await startEmergencyMeeting(
-          roomid
-        );
+        await sendRequest({
+          type: "startEmergencyMeeting",
+          roomId: roomid,
+        });
 
       } catch (error) {
 
@@ -287,7 +247,7 @@ function Rightpage({ data }) {
                 "Running code..."}
             </p>
 
-            {isResolvingCode && (
+            {isCodeReviewPending && (
 
               <Loader message="Compiling code........" />
 

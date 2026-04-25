@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import Coder from "./Code";
 import Leftpage from "./Leftpage.jsx";
@@ -31,6 +31,8 @@ export default function Index({ data }) {
   const [hiddenMain, setHiddenMain] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [taskData, setTaskData] = useState(null);
+  const editorCodeRef = useRef("");
+  const hiddenMainRef = useRef("");
 
   const isAlive = currentUser?.uid
     ? data?.players?.[currentUser.uid]?.alive !== false
@@ -39,28 +41,38 @@ export default function Index({ data }) {
   const canEdit =
     data?.gameState === "playing" && isAlive && !data?.codeRunPending;
 
-  
   useEffect(() => {
-    if (!data?.codestate) return;
+    editorCodeRef.current = editorCode;
+  }, [editorCode]);
 
-    const { code, language, tasks } = data.codestate;
+  useEffect(() => {
+    hiddenMainRef.current = hiddenMain;
+  }, [hiddenMain]);
 
-    
+  useEffect(() => {
+    const codestate = data?.codestate;
+    if (!codestate) return;
+
+    const { code, language, tasks } = codestate;
+
     if (typeof code === "string") {
-      const { editorCode: displayCode, hiddenMain: mainSuffix } =
-        splitMainSection(code);
+      const localFullCode = `${editorCodeRef.current}${hiddenMainRef.current}`;
 
-      setEditorCode(displayCode);
-      setHiddenMain(mainSuffix);
+      // Ignore socket echoes of our current buffer so Monaco keeps the caret stable.
+      if (code !== localFullCode) {
+        const { editorCode: displayCode, hiddenMain: mainSuffix } =
+          splitMainSection(code);
+
+        setEditorCode(displayCode);
+        setHiddenMain(mainSuffix);
+      }
     }
 
     if (language) {
       setLanguage(language);
     }
 
-    if (tasks) {
-      setTaskData(tasks);
-    }
+    setTaskData(tasks);
   }, [data?.codestate]);
 
   return (
