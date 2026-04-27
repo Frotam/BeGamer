@@ -1,6 +1,6 @@
 const WebSocket = require("ws");
 const { buildInitialRoomData } = require("../Roomactions/payload");
-const { rooms } = require("../roomsStore");
+const { rooms, yDocs } = require("../roomsStore");
 const {
   joinRoom,
   sendmessage,
@@ -8,6 +8,133 @@ const {
   updatecursor,
   voteForTopic,
 } = require("../Roomactions/Basicactions");
+const { normalizeStoredCode } = require("../Roomactions/utils");
+const Y = require("yjs");
+
+
+const splitMainSection = (code = "") => {
+  const normalizedCode = String(code || "");
+  const match = normalizedCode.match(/^[ \t]*int\s+main\s*\(/m);
+
+  if (!match) {
+    return { editorCode: normalizedCode, hiddenMain: "" };
+  }
+
+  const startIndex = match.index;
+
+  return {
+    editorCode: `${normalizedCode.slice(0, startIndex).replace(/[\s\n]*$/u, "")}\n`,
+    hiddenMain: normalizedCode.slice(startIndex),
+  };
+};
+
+const getYDoc = (roomId) => {
+  if (!yDocs[roomId]) {
+    const doc = new Y.Doc();
+
+    const roomObj = rooms[roomId];
+    const initialCode = splitMainSection(
+      roomObj?.state?.codestate?.code || "",
+    ).editorCode;
+
+    const yText = doc.getText("monaco");
+
+    if (initialCode) {
+      yText.insert(0, initialCode);
+    }
+
+    yDocs[roomId] = doc;
+  }
+
+  return yDocs[roomId];
+};
+
+const replaceYDocTextFromRoom = (roomId) => {
+  const roomObj = rooms[roomId];
+
+  if (!roomObj) {
+    return null;
+  }
+
+  const doc = getYDoc(roomId);
+  const yText = doc.getText("monaco");
+  const nextEditorCode = splitMainSection(
+    roomObj.state?.codestate?.code || "",
+  ).editorCode;
+
+  doc.transact(() => {
+    yText.delete(0, yText.length);
+
+    if (nextEditorCode) {
+      yText.insert(0, nextEditorCode);
+    }
+  });
+
+  return doc;
+};
+
+const persistRoomCodeFromYDoc = (roomId, fullCode) => {
+  const roomObj = rooms[roomId];
+
+  if (!roomObj?.state?.codestate) {
+    return;
+  }
+
+  const normalizedFullCode =
+    typeof fullCode === "string" ? normalizeStoredCode(fullCode) : null;
+
+  if (normalizedFullCode !== null) {
+    roomObj.state.codestate.code = normalizedFullCode;
+  } else {
+    const yText = getYDoc(roomId).getText("monaco");
+    const { hiddenMain } = splitMainSection(roomObj.state.codestate.code || "");
+    roomObj.state.codestate.code = normalizeStoredCode(
+      `${yText.toString()}${hiddenMain}`,
+    );
+  }
+
+  roomObj.state.codestate.updatedAt = Date.now();
+};
+
+const getFullCodeFromYDoc = (roomId) => {
+  const roomObj = rooms[roomId];
+
+  if (!roomObj?.state?.codestate) {
+    return "";
+  }
+
+  const yText = getYDoc(roomId).getText("monaco");
+  const { hiddenMain } = splitMainSection(roomObj.state.codestate.code || "");
+
+  return normalizeStoredCode(`${yText.toString()}${hiddenMain}`);
+};
+
+const getReviewSnippetFromRoom = (room) => {
+  const tasks = room?.codestate?.tasks;
+
+  if (!tasks?.player || !tasks?.imposter) {
+    throw new Error("Stored task data is missing for this room.");
+  }
+
+  return {
+    tasks,
+  };
+};
+
+const persistSubmittedCodeForRun = (roomId, code) => {
+  const room = rooms[roomId]?.state;
+
+  if (!room || room.codeRunPending) {
+    return;
+  }
+
+  persistRoomCodeFromYDoc(roomId, code);
+
+  if (typeof code === "string") {
+    replaceYDocTextFromRoom(roomId);
+  }
+};
+
 const {
   executeCodeAndResolve,
   finalizeMeeting,
@@ -66,6 +193,17 @@ function registerRoom(server) {
     });
   };
 
+  const broadcastYDocState = (roomId) => {
+    const doc = getYDoc(roomId);
+    const state = Y.encodeStateAsUpdate(doc);
+
+    broadcast(roomId, {
+      type: "yjs-init",
+      roomId,
+      update: Array.from(state),
+    });
+  };
+
   const broadcastRoomState = (roomId) => {
     const roomObj = rooms[roomId];
 
@@ -93,16 +231,22 @@ function registerRoom(server) {
         return;
       }
 
-      const snippet = await fetchSnippetFromFirebase(room.winner);
+      console.log(`[CODE_REVIEW] Starting review for room ${roomId}`);
+      const snippet = getReviewSnippetFromRoom(room);
       await executeCodeAndResolve(roomId, null, snippet);
       broadcastRoomState(roomId);
     } catch (error) {
       const room = rooms[roomId]?.state;
 
-      if (room?.codeRunPending) {
+      if (room) {
         room.codeRunPending = false;
         room.codeRunRequestedAt = null;
         room.codeRunReason = null;
+        room.gameState = "meeting";
+        room.resultMessage = null;
+        room.meetingStartedAt = Date.now();
+        room.meetingVotes = {};
+        room.meetingReason = `Code review could not run: ${error.message}`;
       }
 
       broadcastRoomState(roomId);
@@ -174,7 +318,52 @@ function registerRoom(server) {
           sendAck(ws, requestId, { roomId });
           return;
         }
+        if (data.type === "yjs-update") {
+          const roomObj = rooms[data.roomId];
 
+          if (!roomObj) return;
+
+          const doc = getYDoc(data.roomId);
+          const update = Uint8Array.from(data.update);
+
+          updatecode(data.roomId, roomObj.state.codestate?.code || "", ws.userId);
+          Y.applyUpdate(doc, update);
+          updatecode(data.roomId, getFullCodeFromYDoc(data.roomId), ws.userId);
+
+          roomObj.sockets.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              client.send(
+                JSON.stringify({
+                  type: "yjs-update",
+                  roomId: data.roomId,
+                  update: data.update,
+                }),
+              );
+            }
+          });
+
+          return;
+        }
+        if (data.type === "request-yjs-state") {
+          const roomId = String(data.roomId || "").trim();
+
+          if (!roomId || !rooms[roomId]) {
+            throw new Error("Room not found.");
+          }
+
+          attachSocketToRoom(roomId, ws);
+
+          const doc = getYDoc(roomId);
+          const state = Y.encodeStateAsUpdate(doc);
+
+          send(ws, {
+            type: "yjs-init",
+            roomId,
+            update: Array.from(state),
+          });
+          sendAck(ws, requestId);
+          return;
+        }
         if (data.type === "join") {
           const roomId = String(data.roomId || "").trim();
           const username = String(data.username || "").trim();
@@ -199,20 +388,25 @@ function registerRoom(server) {
             console.log(`Cleanup cancelled for room ${roomId}`);
           }
 
-           
           ws.username = username;
           ws.userId = userId;
           ws.roomId = roomId;
 
           attachSocketToRoom(roomId, ws);
 
-          
           joinRoom(roomId, userId, username);
 
           // broadcast updated state
+          const doc = getYDoc(roomId);
+          const state = Y.encodeStateAsUpdate(doc);
+          
+          send(ws, {
+            type: "yjs-init",
+            roomId,
+            update: Array.from(state),
+          });
           broadcastRoomState(roomId);
 
-          
           send(ws, { type: "playerJoined", roomId });
 
           sendAck(ws, requestId, { roomId });
@@ -236,7 +430,9 @@ function registerRoom(server) {
 
         if (data.type === "resetRoom") {
           resetRoom(data.roomId, ws.userId);
+          replaceYDocTextFromRoom(data.roomId);
           broadcastRoomState(data.roomId);
+          broadcastYDocState(data.roomId);
           sendAck(ws, requestId);
           return;
         }
@@ -253,14 +449,19 @@ function registerRoom(server) {
 
           const snippet = await fetchSnippetFromFirebase(resolvedWinner);
           finalizeVotingRound(data.roomId, ws.userId, snippet);
+          replaceYDocTextFromRoom(data.roomId);
           broadcastRoomState(data.roomId);
+          broadcastYDocState(data.roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "Updatecode") {
           updatecode(data.roomId, data.code, ws.userId);
+          replaceYDocTextFromRoom(data.roomId);
+
           broadcastRoomState(data.roomId);
+          broadcastYDocState(data.roomId);
           sendAck(ws, requestId);
           return;
         }
@@ -289,6 +490,7 @@ function registerRoom(server) {
         }
 
         if (data.type === "runCode") {
+          persistSubmittedCodeForRun(data.roomId, data.code);
           runCode(data.roomId, ws.userId);
           broadcastRoomState(data.roomId);
           sendAck(ws, requestId);
@@ -297,12 +499,14 @@ function registerRoom(server) {
         }
 
         if (data.type === "executeCodeAndResolve") {
+          persistSubmittedCodeForRun(data.roomId, data.code);
           void runServerCodeReview(data.roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "startEmergencyMeeting") {
+          persistSubmittedCodeForRun(data.roomId, data.code);
           startEmergencyMeeting(data.roomId, ws.userId, data.reason);
           broadcastRoomState(data.roomId);
           sendAck(ws, requestId);
@@ -318,8 +522,10 @@ function registerRoom(server) {
         }
 
         if (data.type === "finalizeMeeting") {
+          persistRoomCodeFromYDoc(data.roomId);
           finalizeMeeting(data.roomId, ws.userId);
           broadcastRoomState(data.roomId);
+          broadcastYDocState(data.roomId);
           sendAck(ws, requestId);
           return;
         }
@@ -346,6 +552,7 @@ function registerRoom(server) {
           () => {
             if (rooms[roomId] && rooms[roomId].sockets.length === 0) {
               delete rooms[roomId];
+              delete yDocs[roomId];
               console.log(`Room ${roomId} deleted due to inactivity`);
             }
           },

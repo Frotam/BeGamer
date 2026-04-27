@@ -25,7 +25,10 @@
     "react-router-dom": "^7.13.2",
     "socket.io": "^4.8.3",
     "websocket": "^1.0.35",
-    "ws": "^8.20.0"
+    "ws": "^8.20.0",
+    "y-monaco": "^0.1.6",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

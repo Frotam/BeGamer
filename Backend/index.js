@@ -17,6 +17,10 @@ const COMPILE_TIMEOUT_MS = 7000;
 const RUN_TIMEOUT_MS = 5000;
 const MAX_CODE_BYTES = 100 * 1024;
 const MAX_OUTPUT_BYTES = 64 * 1024;
+const DOCKER_WORKDIR = "/workspace";
+const CPP_DOCKER_IMAGE = process.env.DOCKER_CPP_IMAGE || "begameer-cpp-runner";
+const JS_DOCKER_IMAGE = process.env.DOCKER_JS_IMAGE || "begameer-js-runner";
+const PYTHON_DOCKER_IMAGE = process.env.DOCKER_PYTHON_IMAGE || "begameer-python-runner";
 
 ("got the req")
 
@@ -90,7 +94,8 @@ function runCommand(command, args, options = {}) {
   const {
     cwd,
     timeoutMs = RUN_TIMEOUT_MS,
-    stage = "runtime"
+    stage = "runtime",
+    onTimeout
   } = options;
 
   return new Promise((resolve) => {
@@ -108,6 +113,7 @@ function runCommand(command, args, options = {}) {
 
     const timer = setTimeout(() => {
       timedOut = true;
+      onTimeout?.();
       stopChild(child);
     }, timeoutMs);
 
@@ -176,6 +182,50 @@ function runCommand(command, args, options = {}) {
   });
 }
 
+function removeDockerContainer(containerName) {
+  const cleanupChild = spawn("docker", ["rm", "-f", containerName], {
+    stdio: "ignore"
+  });
+
+  cleanupChild.on("error", () => {});
+}
+
+function buildDockerRunArgs({ containerName, image, runDir, command }) {
+  return [
+    "run",
+    "--rm",
+    "--name",
+    containerName,
+    "-v",
+    `${path.resolve(runDir)}:${DOCKER_WORKDIR}`,
+    "-w",
+    DOCKER_WORKDIR,
+    image,
+    "sh",
+    "-lc",
+    command
+  ];
+}
+
+function runDockerCommand({ image, runDir, command, timeoutMs, stage }) {
+  const containerName = `begameer-${stage}-${crypto.randomUUID()}`;
+
+  return runCommand(
+    "docker",
+    buildDockerRunArgs({
+      containerName,
+      image,
+      runDir,
+      command
+    }),
+    {
+      timeoutMs,
+      stage,
+      onTimeout: () => removeDockerContainer(containerName)
+    }
+  );
+}
+
 function sendRunError(res, result) {
   return res.json({
     success: false,
@@ -187,51 +237,21 @@ function sendRunError(res, result) {
 async function runCpp(code, res) {
 
   const runDir = createRunDir();
-  console.log("runnning");
   
   try {
 
     writeSourceFile(runDir, "main.cpp", code);
-
-    ("running cpp inside backend container...");
-
-    const compileResult = await runCommand(
-      "g++",
-      ["main.cpp", "-O0", "-std=c++17", "-o", "main"],
-      {
-        cwd: runDir,
-        timeoutMs: COMPILE_TIMEOUT_MS,
-        stage: "compile"
-      }
-    );
-
-    if (!compileResult.success) {
-
-      ("CPP COMPILE ERROR:", compileResult.error);
-
-      return sendRunError(res, compileResult);
-
-    }
-
-    const runResult = await runCommand(
-      "./main",
-      [],
-      {
-        cwd: runDir,
-        timeoutMs: RUN_TIMEOUT_MS,
-        stage: "runtime"
-      }
-    );
+    const runResult = await runDockerCommand({
+      image: CPP_DOCKER_IMAGE,
+      runDir,
+      command: "g++ main.cpp -O0 -std=c++17 -o main && ./main",
+      timeoutMs: COMPILE_TIMEOUT_MS + RUN_TIMEOUT_MS,
+      stage: "cpp"
+    });
 
     if (!runResult.success) {
-
-      ("CPP ERROR:", runResult.error);
-
       return sendRunError(res, runResult);
-
     }
-
-    ("CPP OUTPUT:", runResult.output);
 
     return res.json({
 
@@ -255,22 +275,16 @@ async function runCpp(code, res) {
 async function runJs(code, res) {
 
   const runDir = createRunDir();
-console.log("runnning2");
   try {
 
     writeSourceFile(runDir, "main.js", code);
-
-    ("running js inside backend container...");
-
-    const runResult = await runCommand(
-      "node",
-      ["main.js"],
-      {
-        cwd: runDir,
-        timeoutMs: RUN_TIMEOUT_MS,
-        stage: "runtime"
-      }
-    );
+    const runResult = await runDockerCommand({
+      image: JS_DOCKER_IMAGE,
+      runDir,
+      command: "node main.js",
+      timeoutMs: RUN_TIMEOUT_MS,
+      stage: "javascript"
+    });
 
     if (!runResult.success) {
 
@@ -297,22 +311,16 @@ console.log("runnning2");
 async function runPython(code, res) {
 
   const runDir = createRunDir();
-console.log("runnning3");
   try {
 
     writeSourceFile(runDir, "main.py", code);
-
-    ("running python inside backend container...");
-
-    const runResult = await runCommand(
-      "python3",
-      ["main.py"],
-      {
-        cwd: runDir,
-        timeoutMs: RUN_TIMEOUT_MS,
-        stage: "runtime"
-      }
-    );
+    const runResult = await runDockerCommand({
+      image: PYTHON_DOCKER_IMAGE,
+      runDir,
+      command: "python3 main.py",
+      timeoutMs: RUN_TIMEOUT_MS,
+      stage: "python"
+    });
 
     if (!runResult.success) {
 

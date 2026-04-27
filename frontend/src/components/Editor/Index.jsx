@@ -33,6 +33,7 @@ export default function Index({ data }) {
   const [taskData, setTaskData] = useState(null);
   const editorCodeRef = useRef("");
   const hiddenMainRef = useRef("");
+  const liveEditorCodeRef = useRef("");
 
   const isAlive = currentUser?.uid
     ? data?.players?.[currentUser.uid]?.alive !== false
@@ -49,11 +50,17 @@ export default function Index({ data }) {
     hiddenMainRef.current = hiddenMain;
   }, [hiddenMain]);
 
+  const getLiveFullCode = () => {
+    return `${liveEditorCodeRef.current}${hiddenMainRef.current}`;
+  };
+
   useEffect(() => {
     const codestate = data?.codestate;
+    
     if (!codestate) return;
-
+    
     const { code, language, tasks } = codestate;
+    // console.log(code );
 
     if (typeof code === "string") {
       const localFullCode = `${editorCodeRef.current}${hiddenMainRef.current}`;
@@ -90,11 +97,14 @@ export default function Index({ data }) {
           readOnly={!canEdit}
           playerCursors={data?.codestate?.playersCursor || {}}
           players={data?.players || {}}
+          onEditorValueChange={(value) => {
+            liveEditorCodeRef.current = value;
+          }}
         />
       </div>
 
       <div className="editor-sidebar">
-        <Rightpage data={data} />
+        <Rightpage data={data} getLiveFullCode={getLiveFullCode} />
       </div>
     </div>
   );

@@ -197,6 +197,8 @@ function Room() {
     const currentRole = roomData.players?.[sessionUser.uid]?.role || null;
 
     if (!currentRole) {
+      console.log("waiting role");
+      
       return;
     }
 
@@ -250,28 +252,25 @@ function Room() {
     if (!isTerminalState || !gameEndedAt) {
       return;
     }
-
     if (roomData.hostId !== sessionUser.uid) {
       return;
     }
-
     awaitingResetRef.current = true;
-
     const endingKey = `${roomData.gameState}:${gameEndedAt}`;
-
     if (handledEndingRef.current === endingKey) {
       return;
     }
-
     handledEndingRef.current = endingKey;
-
+      const timeout = setTimeout(() => {
     
-
-    return () => clearTimeout(timeout);
+    sendMessage({
+      type:"resetRoom",
+      roomId:roomid
+    }) 
+  }, 5000);
   }, [
     roomData?.gameState,
     roomData?.gameEndedAt,
-   
     roomid,
   ]);
 

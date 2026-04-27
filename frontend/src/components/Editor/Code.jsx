@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { useParams } from "react-router-dom";
 import { useSocket } from "../../context/Socketcontext";
-import { normalizeStoredCode } from "../../context/roomActions/utils.js";
+import * as Y from "yjs";
+import { MonacoBinding } from "y-monaco";
 
 const sanitizeClassName = (uid) =>
   `cursor-glyph-${String(uid).replace(/[^a-z0-9_-]/gi, "-")}`;
@@ -19,10 +20,9 @@ const ensureCursorStyle = (className, colors) => {
   style.id = className;
 
   const isMulti = colors.length > 1;
-  const background =
-    isMulti
-      ? `linear-gradient(135deg, ${colors.join(", ")})`
-      : colors[0];
+  const background = isMulti
+    ? `linear-gradient(135deg, ${colors.join(", ")})`
+    : colors[0];
 
   style.textContent = `
     .monaco-editor .${className} {
@@ -40,28 +40,39 @@ const ensureCursorStyle = (className, colors) => {
 };
 
 function Code({
-  code,
-  setCode,
   language,
-  hiddenSuffix = "",
   readOnly,
   playerCursors = {},
   players = {},
+  onEditorValueChange,
 }) {
-  const { sendMessage } = useSocket();
+  const { isConnected, sendMessage, on, off } = useSocket();
   const { roomid } = useParams();
-
-  const timeoutRef = useRef(null);
+  const [hasYjsState, setHasYjsState] = useState(false);
+  const [isEditorMounted, setIsEditorMounted] = useState(false);
+  const ydocRef = useRef(null);
+  const providerRef = useRef(null);
   const cursorTimeoutRef = useRef(null);
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
+  const isConnectedRef = useRef(isConnected);
+  const readOnlyRef = useRef(readOnly);
   const decorationIdsRef = useRef([]);
   const lastCursorRef = useRef({ line: null, column: null });
 
   useEffect(() => {
+    isConnectedRef.current = isConnected;
+  }, [isConnected]);
+
+  useEffect(() => {
+    readOnlyRef.current = readOnly;
+  }, [readOnly]);
+
+  useEffect(() => {
     return () => {
-      clearTimeout(timeoutRef.current);
       clearTimeout(cursorTimeoutRef.current);
+      providerRef.current?.destroy?.();
+      ydocRef.current?.destroy();
     };
   }, []);
 
@@ -127,14 +138,44 @@ function Code({
     );
   }, [playerCursors, players]);
 
+  const requestYjsState = () => {
+    if (!ydocRef.current || !isConnectedRef.current || !roomid) return;
+
+    try {
+      sendMessage({
+        type: "request-yjs-state",
+        roomId: roomid,
+      });
+    } catch {
+      // The socket can close between the readiness check and send.
+    }
+  };
+
   const handleMount = (editorInstance, monaco) => {
     editorRef.current = editorInstance;
     monacoRef.current = monaco;
+    setIsEditorMounted(true);
 
-    if (!editorInstance) return;
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
+
+    const yText = ydoc.getText("monaco");
+
+    providerRef.current = new MonacoBinding(
+      yText,
+      editorInstance.getModel(),
+      new Set([editorInstance]),
+      ydoc.awareness
+    );
+
+    onEditorValueChange?.(editorInstance.getValue() || "");
+
+    editorInstance.onDidChangeModelContent(() => {
+      onEditorValueChange?.(editorInstance.getValue() || "");
+    });
 
     editorInstance.onDidChangeCursorPosition((event) => {
-      if (readOnly) return;
+      if (readOnlyRef.current) return;
       if (!event?.position) return;
 
       const line = event.position.lineNumber;
@@ -150,56 +191,81 @@ function Code({
       lastCursorRef.current = { line, column };
       clearTimeout(cursorTimeoutRef.current);
       cursorTimeoutRef.current = setTimeout(() => {
+        if (!isConnectedRef.current) return;
 
-        sendMessage({
-          type:"updateCursor",
-          roomId:roomid,
-          line,
-          column
-
-        })
-
-        // updatecursor(roomid, { line, column }).catch(() => {});
+        try {
+          sendMessage({
+            type: "updateCursor",
+            roomId: roomid,
+            line,
+            column,
+          });
+        } catch {
+          // The socket can close between the readiness check and send.
+        }
       }, 200);
     });
+
+    ydoc.on("update", (update, origin) => {
+      if (origin === "remote") return;
+      if (!isConnectedRef.current) return;
+
+      try {
+        sendMessage({
+          type: "yjs-update",
+          roomId: roomid,
+          update: Array.from(update),
+        });
+      } catch {
+        // The socket can close between the readiness check and send.
+      }
+    });
+
   };
 
-  const handleChange = (val = "") => {
-    if (readOnly) return;
+  useEffect(() => {
+    const handleUpdate = (msg) => {
+      if (!ydocRef.current || (msg.roomId && msg.roomId !== roomid)) return;
 
-    const normalizedEditorCode = normalizeStoredCode(val);
-    setCode(normalizedEditorCode);
+      const update = Uint8Array.from(msg.update);
+      Y.applyUpdate(ydocRef.current, update, "remote");
+      setHasYjsState(true);
+    };
 
-    const normalizedCode = hiddenSuffix
-      ? `${normalizedEditorCode}${hiddenSuffix}`
-      : normalizedEditorCode;
+    const handleInit = (msg) => {
+      if (!ydocRef.current || (msg.roomId && msg.roomId !== roomid)) return;
 
-    clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-    
-      sendMessage({
-        type:"Updatecode",
-        roomId:roomid,
-        code:normalizedCode
-      })
+      const update = Uint8Array.from(msg.update);
+      Y.applyUpdate(ydocRef.current, update, "remote");
+      setHasYjsState(true);
+    };
 
-      // updatecode(roomid, normalizedCode);
-    }, 400);
-  };
+    on("yjs-update", handleUpdate);
+    on("yjs-init", handleInit);
+
+    return () => {
+      off("yjs-update", handleUpdate);
+      off("yjs-init", handleInit);
+    };
+  }, [on, off, roomid]);
+
+  useEffect(() => {
+    setHasYjsState(false);
+    requestYjsState();
+  }, [isConnected, roomid, isEditorMounted]);
 
   return (
     <Editor
       height="100%"
+      defaultValue=""
       language={language}
-      value={code}
       theme="vs-dark"
       onMount={handleMount}
-      onChange={handleChange}
       options={{
         fontSize: 14,
         minimap: { enabled: false },
         automaticLayout: true,
-        readOnly,
+        readOnly: readOnly || !hasYjsState,
         glyphMargin: true,
         formatOnPaste: false,
         formatOnType: false,

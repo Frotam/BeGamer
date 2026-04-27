@@ -55,6 +55,8 @@ const buildTaskState = (snippet) => {
 
 const runSubmittedCode = async ({ code, language }) => {
   const port = Number(process.env.PORT) || 5000;
+  console.log(`[CODE_REVIEW] Running ${language} code (${Buffer.byteLength(code, "utf8")} bytes)`);
+
   const response = await fetch(`http://127.0.0.1:${port}/run-code`, {
     method: "POST",
     headers: {
@@ -78,6 +80,7 @@ const runSubmittedCode = async ({ code, language }) => {
     throw new Error(payload?.error || "Compilation failed.");
   }
 
+  console.log(`[CODE_REVIEW] Output: ${JSON.stringify(String(payload.output || ""))}`);
   return String(payload.output || "");
 };
 
@@ -302,7 +305,8 @@ const executeCodeAndResolve = async (roomId, userId, snippet) => {
   try {
     const output = await runSubmittedCode({ code, language });
     return resolveCodeRun(roomId, userId, snippet, output);
-  } catch {
+  } catch (error) {
+    console.error("[CODE_REVIEW] Execution failed:", error.message);
     room.gameState = "meeting";
     room.resultMessage = null;
     room.codeRunPending = false;
@@ -310,7 +314,7 @@ const executeCodeAndResolve = async (roomId, userId, snippet) => {
     room.codeRunReason = null;
     room.meetingStartedAt = Date.now();
     room.meetingVotes = {};
-    room.meetingReason = "There was a compilation error while running the code.";
+    room.meetingReason = `There was a compilation error while running the code: ${error.message}`;
     return room;
   }
 };

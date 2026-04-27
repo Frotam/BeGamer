@@ -10,7 +10,7 @@ import { useToast } from "../../context/Toast";
 import Loader from "../Loader/Loader";
 import { useSessionUser } from "../../context/sessionUser";
 
-function Rightpage({ data }) {
+function Rightpage({ data, getLiveFullCode }) {
   const { sendRequest } = useSocket();
   const currentUser = useSessionUser();
 
@@ -105,6 +105,7 @@ function Rightpage({ data }) {
         await sendRequest({
           type: "runCode",
           roomId: roomid,
+          code: getLiveFullCode?.(),
         });
 
       } catch (error) {
@@ -171,6 +172,7 @@ function Rightpage({ data }) {
         await sendRequest({
           type: "startEmergencyMeeting",
           roomId: roomid,
+          code: getLiveFullCode?.(),
         });
 
       } catch (error) {

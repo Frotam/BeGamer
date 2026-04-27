@@ -132,5 +132,6 @@ module.exports = {
   sendmessage,
   updatecode,
   updatecursor,
+  getRoomState,
   voteForTopic,
 };
