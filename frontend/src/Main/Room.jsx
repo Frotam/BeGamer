@@ -74,6 +74,27 @@ function Room() {
       roomId: roomid,
     });
   }, [isConnected, navigate, roomid, sendMessage, sessionUser?.uid]);
+
+  useEffect(() => {
+    const handlePageLeave = () => {
+      try {
+        sendMessage({
+          type: "leaveRoom",
+          roomId: roomid,
+        });
+      } catch {
+        // Socket may already be closed during unload/navigation.
+      }
+    };
+
+    window.addEventListener("pagehide", handlePageLeave);
+    window.addEventListener("beforeunload", handlePageLeave);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageLeave);
+      window.removeEventListener("beforeunload", handlePageLeave);
+    };
+  }, [roomid, sendMessage]);
   // listen the room updates
   useEffect(() => {
     const handleRoomState = (data) => {
@@ -109,6 +130,12 @@ function Room() {
         return;
       }
 
+      if (typeof data.message === "string" && data.message.toLowerCase().includes("room not found")) {
+        localStorage.removeItem("pendingroom");
+        navigate("/");
+        return;
+      }
+
       setRoomError(data.message);
     };
 
@@ -121,7 +148,7 @@ function Room() {
       off("cursorUpdate", handleCursorUpdate);
       off("error", handleError);
     };
-  }, [on, off]);
+  }, [on, off, navigate]);
 
   const copyLink = () => {
     const fullUrl = `${window.location.origin}${location.pathname}${location.search}${location.hash}`;

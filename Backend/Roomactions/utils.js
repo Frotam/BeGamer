@@ -44,6 +44,23 @@ const hasUsableCode = (code) => {
 const getSnippetCode = (snippet) => {
   return normalizeStoredCode(snippet?.code || snippet?.starterCode || "");
 };
+function removePlayer(room, userId) {
+  delete room.state.players[userId];
+  if (room.state.votes) {
+    delete room.state.votes[userId];
+  }
+  if (room.state.meetingVotes) {
+    delete room.state.meetingVotes[userId];
+  }
+  if (room.state.codestate?.playersCursor) {
+    delete room.state.codestate.playersCursor[userId];
+  }
+
+  // also remove sockets of that user
+  room.sockets = room.sockets.filter(
+    (s) => s.user?.uid !== userId
+  );
+}
 
 const normalizeLockedRanges = (lockedRanges) => {
   if (!Array.isArray(lockedRanges)) {
@@ -215,7 +232,28 @@ const shouldImposterWinByParity = (room) => {
 
   return alivePlayerIds.includes(room.imposterId);
 };
+function countUserSockets(room, userId) {
+  return room.sockets.filter((s) => s.user?.uid === userId).length;
+}
 
+function transferHost(room) {
+  const playersById = room.state.players || {};
+  const playerIds = Object.keys(playersById);
+
+  if (playerIds.length === 0) {
+    room.state.hostId = null;
+    return;
+  }
+
+  // choose earliest connected player
+  playerIds.sort((leftId, rightId) => {
+    const leftConnectedAt = Number(playersById[leftId]?.connectedAt || 0);
+    const rightConnectedAt = Number(playersById[rightId]?.connectedAt || 0);
+    return leftConnectedAt - rightConnectedAt;
+  });
+
+  room.state.hostId = playerIds[0];
+}
 module.exports = {
   buildResetPlayers,
   compareOutputs,
@@ -235,4 +273,7 @@ module.exports = {
   pickPlayerColors,
   sanitizeRoleTaskConfig,
   shouldImposterWinByParity,
+  removePlayer,
+  countUserSockets,
+  transferHost
 };

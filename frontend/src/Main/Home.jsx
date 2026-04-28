@@ -99,27 +99,6 @@ function Home() {
   };
 
 
-  if (!isConnected) {
-    return <Loader message="Connecting..." />;
-  }
-
-  if (connectionError) {
-    return (
-      <SkyBackground>
-        <div className="home-container">
-          <div className="sky-panel home-panel">
-            <h1 className="arcade title" style={{ color: "#ff6f6f" }}>
-              Connection failed
-            </h1>
-            <p className="pregame-copy" style={{ color: "#fff" }}>
-              {connectionError}
-            </p>
-          </div>
-        </div>
-      </SkyBackground>
-    );
-  }
-
   if (actionMessage) {
     return <Loader message={actionMessage} />;
   }
@@ -136,6 +115,17 @@ function Home() {
           </h1>
 
           <p className="arcade subtitle">Sabotage or survive</p>
+          <p
+            className="pregame-copy"
+            style={{
+              color: isConnected ? "#4caf50" : "#ffb347",
+              minHeight: 20,
+            }}
+          >
+            {isConnected
+              ? "Connected to game server"
+              : connectionError || "Connecting to game server..."}
+          </p>
 
           <input
             className="game-input"
@@ -154,12 +144,20 @@ function Home() {
               placeholder="Room code"
             />
 
-            <button className="game-btn mine" onClick={handleJoin}>
+            <button
+              className="game-btn mine"
+              onClick={handleJoin}
+              disabled={!isConnected}
+            >
               Join
             </button>
           </div>
 
-          <button className="game-btn host-btn mine" onClick={handleCreateRoom}>
+          <button
+            className="game-btn host-btn mine"
+            onClick={handleCreateRoom}
+            disabled={!isConnected}
+          >
             Host Game
           </button>
         </div>

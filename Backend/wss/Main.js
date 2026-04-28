@@ -1,4 +1,6 @@
 const WebSocket = require("ws");
+const { randomUUID } = require("crypto");
+const { URL } = require("url");
 const { buildInitialRoomData } = require("../Roomactions/payload");
 const { rooms, yDocs } = require("../roomsStore");
 const {
@@ -8,9 +10,8 @@ const {
   updatecursor,
   voteForTopic,
 } = require("../Roomactions/Basicactions");
-const { normalizeStoredCode } = require("../Roomactions/utils");
+const { normalizeStoredCode, removePlayer, transferHost } = require("../Roomactions/utils");
 const Y = require("yjs");
-
 
 const splitMainSection = (code = "") => {
   const normalizedCode = String(code || "");
@@ -148,10 +149,10 @@ const {
 const {
   fetchSnippetFromFirebase,
 } = require("../Roomactions/firebasefunctions");
-
 function registerRoom(server) {
   const wss = new WebSocket.Server({ server });
   const activeCodeReviews = new Set();
+  const sessionStore = new Map();
 
   const send = (ws, payload) => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -177,6 +178,120 @@ function registerRoom(server) {
       message,
       requestId,
     });
+  };
+
+  const isValidSessionId = (value) => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      String(value || ""),
+    );
+  };
+
+  const createSessionId = () => {
+    let sessionId = randomUUID();
+    while (sessionStore.has(sessionId)) {
+      sessionId = randomUUID();
+    }
+    sessionStore.set(sessionId, { createdAt: Date.now(), lastSeenAt: Date.now() });
+    return sessionId;
+  };
+
+  const resolveInitialSessionId = (request) => {
+    try {
+      const parsedUrl = new URL(request.url || "/", "ws://localhost");
+      const candidate = String(parsedUrl.searchParams.get("sessionId") || "").trim();
+      if (isValidSessionId(candidate) && sessionStore.has(candidate)) {
+        sessionStore.get(candidate).lastSeenAt = Date.now();
+        return candidate;
+      }
+    } catch {
+      // Ignore malformed URL and issue a fresh session id.
+    }
+
+    return createSessionId();
+  };
+
+  const assertBoundSession = (ws, payload) => {
+    const providedSessionId = String(payload?.sessionId || "").trim();
+    const boundSessionId = String(ws.sessionId || "").trim();
+
+    if (!providedSessionId || !boundSessionId || providedSessionId !== boundSessionId) {
+      throw new Error("Invalid session.");
+    }
+
+    const session = sessionStore.get(boundSessionId);
+    if (!session) {
+      throw new Error("Session expired.");
+    }
+
+    session.lastSeenAt = Date.now();
+    ws.userId = boundSessionId;
+  };
+
+
+
+  
+
+  const countUserSockets = (roomObj, userId) => {
+    if (!roomObj || !userId) return 0;
+    return (roomObj.sockets || []).filter(
+      (client) => client && client.readyState === WebSocket.OPEN && client.userId === userId,
+    ).length;
+  };
+
+  const ensureHostExists = (roomObj) => {
+    if (!roomObj?.state) return;
+    const hostId = roomObj.state.hostId;
+    if (hostId && roomObj.state.players?.[hostId]) return;
+    transferHost(roomObj);
+  };
+
+  const startDisconnectedTimer = (roomId, roomObj, userId) => {
+    if (!roomObj.disconnected) roomObj.disconnected = {};
+    if (roomObj.disconnected[userId]?.timeout) return;
+
+    const timeout = setTimeout(() => {
+      if (!rooms[roomId] || !rooms[roomId].disconnected?.[userId]) {
+        return;
+      }
+
+      removePlayer(rooms[roomId], userId);
+      ensureHostExists(rooms[roomId]);
+      delete rooms[roomId].disconnected[userId];
+      broadcastRoomState(roomId);
+    }, 60 * 1000);
+
+    roomObj.disconnected[userId] = {
+      timeout,
+      disconnectedAt: Date.now(),
+    };
+  };
+
+  const destroyRoomIfEmpty = (roomId, roomObj) => {
+    const playerCount = Object.keys(roomObj?.state?.players || {}).length;
+    if (playerCount > 0) return false;
+
+    if (roomObj.cleanupTimer) {
+      clearTimeout(roomObj.cleanupTimer);
+      roomObj.cleanupTimer = null;
+    }
+
+    delete rooms[roomId];
+    delete yDocs[roomId];
+    return true;
+  };
+
+  const getPlayerIds = (roomObj) => {
+    return Object.keys(roomObj?.state?.players || {});
+  };
+
+  const destroyRoomIfSoloHostDisconnect = (roomId, roomObj, userId) => {
+    const playerIds = getPlayerIds(roomObj);
+    if (playerIds.length === 1 && playerIds[0] === userId) {
+      removePlayer(roomObj, userId);
+      destroyRoomIfEmpty(roomId, roomObj);
+      return true;
+    }
+    return false;
   };
 
   const broadcast = (roomId, payload) => {
@@ -215,6 +330,41 @@ function registerRoom(server) {
       type: "roomState",
       state: roomObj.state,
     });
+  };
+
+  const getRoomObject = (roomId) => {
+    const normalizedRoomId = String(roomId || "").trim();
+
+    if (!normalizedRoomId) {
+      throw new Error("Room not found.");
+    }
+
+    const roomObj = rooms[normalizedRoomId];
+
+    if (!roomObj) {
+      throw new Error("Room not found.");
+    }
+
+    return { roomId: normalizedRoomId, roomObj };
+  };
+
+  const assertRoomAccess = (ws, roomId) => {
+    const { roomId: normalizedRoomId, roomObj } = getRoomObject(roomId);
+    const userId = String(ws?.userId || "").trim();
+
+    if (!userId) {
+      throw new Error("Unauthorized access.");
+    }
+
+    if (!roomObj.state?.players?.[userId]) {
+      throw new Error("Unauthorized access.");
+    }
+
+    if (ws.roomId && ws.roomId !== normalizedRoomId) {
+      throw new Error("Unauthorized access.");
+    }
+
+    return { roomId: normalizedRoomId, roomObj };
   };
 
   const runServerCodeReview = async (roomId) => {
@@ -276,7 +426,17 @@ function registerRoom(server) {
     }
   };
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, request) => {
+    const sessionId = resolveInitialSessionId(request);
+    ws.sessionId = sessionId;
+    ws.userId = sessionId;
+    ws.user = { uid: sessionId, name: null };
+
+    send(ws, {
+      type: "session",
+      sessionId,
+    });
+
     ws.on("message", async (message) => {
       let data;
 
@@ -290,13 +450,15 @@ function registerRoom(server) {
       const { requestId } = data;
 
       try {
+        assertBoundSession(ws, data);
+
         if (data.type === "createroom") {
           const username = String(data.username || "").trim();
-          const userId = String(data.uid || "").trim();
-
+          const userId = ws.sessionId;
           if (!username || !userId) {
-            throw new Error("Username and uid are required.");
+            throw new Error("Username is required.");
           }
+           
 
           const roomId = Math.random().toString(36).slice(2, 8);
           const state = buildInitialRoomData(userId, username);
@@ -305,10 +467,14 @@ function registerRoom(server) {
             sockets: [],
             state,
           };
-
+          
           ws.username = username;
           ws.userId = userId;
+          ws.user.uid = userId;
+           
           attachSocketToRoom(roomId, ws);
+        
+          joinRoom(roomId,userId,username)
 
           send(ws, {
             type: "roomCreated",
@@ -319,23 +485,20 @@ function registerRoom(server) {
           return;
         }
         if (data.type === "yjs-update") {
-          const roomObj = rooms[data.roomId];
-
-          if (!roomObj) return;
-
-          const doc = getYDoc(data.roomId);
+          const { roomId, roomObj } = assertRoomAccess(ws, data.roomId);
+          const doc = getYDoc(roomId);
           const update = Uint8Array.from(data.update);
 
-          updatecode(data.roomId, roomObj.state.codestate?.code || "", ws.userId);
+          updatecode(roomId, roomObj.state.codestate?.code || "", ws.userId);
           Y.applyUpdate(doc, update);
-          updatecode(data.roomId, getFullCodeFromYDoc(data.roomId), ws.userId);
+          updatecode(roomId, getFullCodeFromYDoc(roomId), ws.userId);
 
           roomObj.sockets.forEach((client) => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
               client.send(
                 JSON.stringify({
                   type: "yjs-update",
-                  roomId: data.roomId,
+                  roomId,
                   update: data.update,
                 }),
               );
@@ -345,11 +508,7 @@ function registerRoom(server) {
           return;
         }
         if (data.type === "request-yjs-state") {
-          const roomId = String(data.roomId || "").trim();
-
-          if (!roomId || !rooms[roomId]) {
-            throw new Error("Room not found.");
-          }
+          const { roomId } = assertRoomAccess(ws, data.roomId);
 
           attachSocketToRoom(roomId, ws);
 
@@ -367,10 +526,10 @@ function registerRoom(server) {
         if (data.type === "join") {
           const roomId = String(data.roomId || "").trim();
           const username = String(data.username || "").trim();
-          const userId = String(data.uid || "").trim();
+          const userId = ws.sessionId;
 
           if (!roomId || !username || !userId) {
-            throw new Error("roomId, username, and uid are required.");
+            throw new Error("roomId and username are required.");
           }
 
           const roomObj = rooms[roomId];
@@ -379,7 +538,6 @@ function registerRoom(server) {
             throw new Error("Room not found");
           }
 
-          // 🔥 CANCEL CLEANUP TIMER (IMPORTANT)
           if (roomObj.cleanupTimer) {
             clearTimeout(roomObj.cleanupTimer);
             roomObj.cleanupTimer = null;
@@ -390,16 +548,22 @@ function registerRoom(server) {
 
           ws.username = username;
           ws.userId = userId;
+          ws.user.uid = userId;
           ws.roomId = roomId;
 
           attachSocketToRoom(roomId, ws);
+
+          if (roomObj.disconnected?.[userId]?.timeout) {
+            clearTimeout(roomObj.disconnected[userId].timeout);
+            delete roomObj.disconnected[userId];
+          }
 
           joinRoom(roomId, userId, username);
 
           // broadcast updated state
           const doc = getYDoc(roomId);
           const state = Y.encodeStateAsUpdate(doc);
-          
+
           send(ws, {
             type: "yjs-init",
             roomId,
@@ -414,31 +578,87 @@ function registerRoom(server) {
           return;
         }
 
+        if (data.type === "leaveRoom") {
+          const roomId = String(data.roomId || "").trim();
+          const roomObj = rooms[roomId];
+
+          // Idempotent leave: if room is already gone, do not treat it as an error.
+          if (!roomId || !roomObj) {
+            sendAck(ws, requestId);
+            return;
+          }
+
+          if (!ws.userId || !roomObj.state?.players?.[ws.userId]) {
+            sendAck(ws, requestId);
+            return;
+          }
+
+          const userId = ws.userId;
+
+          if (roomObj.disconnected?.[userId]?.timeout) {
+            clearTimeout(roomObj.disconnected[userId].timeout);
+            delete roomObj.disconnected[userId];
+          }
+
+          roomObj.sockets = roomObj.sockets.filter((client) => client !== ws);
+          ws.roomId = null;
+
+          const gameState = roomObj.state?.gameState;
+          const hasActiveConnection = countUserSockets(roomObj, userId) > 0;
+
+          if (!hasActiveConnection) {
+            if (destroyRoomIfSoloHostDisconnect(roomId, roomObj, userId)) {
+              sendAck(ws, requestId);
+              return;
+            }
+
+            if (gameState === "lobby") {
+              removePlayer(roomObj, userId);
+              ensureHostExists(roomObj);
+              if (destroyRoomIfEmpty(roomId, roomObj)) {
+                sendAck(ws, requestId);
+                return;
+              }
+              broadcastRoomState(roomId);
+            } else {
+              startDisconnectedTimer(roomId, roomObj, userId);
+              ensureHostExists(roomObj);
+              broadcastRoomState(roomId);
+            }
+          }
+
+          sendAck(ws, requestId);
+          return;
+        }
+
         if (data.type === "startVoting") {
-          startVoting(data.roomId, ws.userId);
-          broadcastRoomState(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          startVoting(roomId, ws.userId);
+          broadcastRoomState(roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "vote") {
-          voteForTopic(data.roomId, ws.userId, data.topicId);
-          broadcastRoomState(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          voteForTopic(roomId, ws.userId, data.topicId);
+          broadcastRoomState(roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "resetRoom") {
-          resetRoom(data.roomId, ws.userId);
-          replaceYDocTextFromRoom(data.roomId);
-          broadcastRoomState(data.roomId);
-          broadcastYDocState(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          resetRoom(roomId, ws.userId);
+          replaceYDocTextFromRoom(roomId);
+          broadcastRoomState(roomId);
+          broadcastYDocState(roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "finalizeVoting") {
-          const roomObj = rooms[data.roomId];
+          const { roomId, roomObj } = assertRoomAccess(ws, data.roomId);
           const winner = roomObj?.state?.winner || null;
           const resolvedWinner =
             winner || Object.values(roomObj?.state?.votes || {}).find(Boolean);
@@ -448,31 +668,33 @@ function registerRoom(server) {
           }
 
           const snippet = await fetchSnippetFromFirebase(resolvedWinner);
-          finalizeVotingRound(data.roomId, ws.userId, snippet);
-          replaceYDocTextFromRoom(data.roomId);
-          broadcastRoomState(data.roomId);
-          broadcastYDocState(data.roomId);
+          finalizeVotingRound(roomId, ws.userId, snippet);
+          replaceYDocTextFromRoom(roomId);
+          broadcastRoomState(roomId);
+          broadcastYDocState(roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "Updatecode") {
-          updatecode(data.roomId, data.code, ws.userId);
-          replaceYDocTextFromRoom(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          updatecode(roomId, data.code, ws.userId);
+          replaceYDocTextFromRoom(roomId);
 
-          broadcastRoomState(data.roomId);
-          broadcastYDocState(data.roomId);
+          broadcastRoomState(roomId);
+          broadcastYDocState(roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "updateCursor") {
-          updatecursor(data.roomId, ws.userId, {
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          updatecursor(roomId, ws.userId, {
             line: data.line,
             column: data.column,
           });
 
-          broadcast(data.roomId, {
+          broadcast(roomId, {
             type: "cursorUpdate",
             userId: ws.userId,
             line: data.line,
@@ -483,49 +705,55 @@ function registerRoom(server) {
         }
 
         if (data.type === "sendChat") {
-          sendmessage(data.roomId, ws.userId, data.message);
-          broadcastRoomState(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          sendmessage(roomId, ws.userId, data.message);
+          broadcastRoomState(roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "runCode") {
-          persistSubmittedCodeForRun(data.roomId, data.code);
-          runCode(data.roomId, ws.userId);
-          broadcastRoomState(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          persistSubmittedCodeForRun(roomId, data.code);
+          runCode(roomId, ws.userId);
+          broadcastRoomState(roomId);
           sendAck(ws, requestId);
-          void runServerCodeReview(data.roomId);
+          void runServerCodeReview(roomId);
           return;
         }
 
         if (data.type === "executeCodeAndResolve") {
-          persistSubmittedCodeForRun(data.roomId, data.code);
-          void runServerCodeReview(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          persistSubmittedCodeForRun(roomId, data.code);
+          void runServerCodeReview(roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "startEmergencyMeeting") {
-          persistSubmittedCodeForRun(data.roomId, data.code);
-          startEmergencyMeeting(data.roomId, ws.userId, data.reason);
-          broadcastRoomState(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          persistSubmittedCodeForRun(roomId, data.code);
+          startEmergencyMeeting(roomId, ws.userId, data.reason);
+          broadcastRoomState(roomId);
           sendAck(ws, requestId);
-          void runServerCodeReview(data.roomId);
+          void runServerCodeReview(roomId);
           return;
         }
 
         if (data.type === "voteInMeeting") {
-          voteInMeeting(data.roomId, ws.userId, data.targetId);
-          broadcastRoomState(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          voteInMeeting(roomId, ws.userId, data.targetId);
+          broadcastRoomState(roomId);
           sendAck(ws, requestId);
           return;
         }
 
         if (data.type === "finalizeMeeting") {
-          persistRoomCodeFromYDoc(data.roomId);
-          finalizeMeeting(data.roomId, ws.userId);
-          broadcastRoomState(data.roomId);
-          broadcastYDocState(data.roomId);
+          const { roomId } = assertRoomAccess(ws, data.roomId);
+          persistRoomCodeFromYDoc(roomId);
+          finalizeMeeting(roomId, ws.userId);
+          broadcastRoomState(roomId);
+          broadcastYDocState(roomId);
           sendAck(ws, requestId);
           return;
         }
@@ -536,30 +764,38 @@ function registerRoom(server) {
       }
     });
 
-    ws.on("close", () => {
-      const roomId = ws.roomId;
-      if (!roomId || !rooms[roomId]) return;
+  ws.on("close", () => {
+    const roomId = ws.roomId;
+    const room = rooms[roomId];
+    if (!roomId || !room) return;
 
-      const roomObj = rooms[roomId];
+    const userId = ws.userId || ws.user?.uid;
+    if (!userId) return;
 
-      // remove socket
-      roomObj.sockets = roomObj.sockets.filter((client) => client !== ws);
+    room.sockets = room.sockets.filter((c) => c !== ws);
 
-      if (roomObj.sockets.length === 0) {
-        roomObj.emptySince = Date.now();
+    const gameState = room.state?.gameState;
+    const hasActiveConnection = countUserSockets(room, userId) > 0;
+    if (hasActiveConnection) return;
 
-        roomObj.cleanupTimer = setTimeout(
-          () => {
-            if (rooms[roomId] && rooms[roomId].sockets.length === 0) {
-              delete rooms[roomId];
-              delete yDocs[roomId];
-              console.log(`Room ${roomId} deleted due to inactivity`);
-            }
-          },
-          10 * 60 * 1000,
-        ); // 10 min
+    if (destroyRoomIfSoloHostDisconnect(roomId, room, userId)) {
+      return;
+    }
+
+    if (gameState === "lobby") {
+      removePlayer(room, userId);
+      ensureHostExists(room);
+      if (destroyRoomIfEmpty(roomId, room)) {
+        return;
       }
-    });
+      broadcastRoomState(roomId);
+      return;
+    }
+
+    startDisconnectedTimer(roomId, room, userId);
+    ensureHostExists(room);
+    broadcastRoomState(roomId);
+  });
   });
 }
 
