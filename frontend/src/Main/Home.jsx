@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import Loader from "../components/Loader/Loader";
 import SkyBackground from "../components/Background/SkyBackground";
 import { useToast } from "../context/Toast";
-import { ensureSessionUser } from "../context/sessionUser";
 import { useSocket } from "../context/Socketcontext";
 
 function Home() {
@@ -62,14 +61,13 @@ function Home() {
 
     try {
       const name = getName();
-      const sessionUser = ensureSessionUser(name);
+      localStorage.setItem("username", name);
 
       setActionMessage("Joining room...");
 
       sendMessage({
         type: "join",
         username: name,
-        uid: sessionUser.uid,
         roomId,
       });
     } catch (err) {
@@ -86,12 +84,11 @@ function Home() {
 
     try {
       const name = getName();
-      const sessionUser = ensureSessionUser(name);
+      localStorage.setItem("username", name);
 
       sendMessage({
         type: "createroom",
         username: name,
-        uid: sessionUser.uid,
       });
     } catch (err) {
       showError(err.message);

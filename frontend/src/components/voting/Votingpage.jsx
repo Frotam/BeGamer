@@ -13,9 +13,7 @@ const VOTING_DURATION_MS = 15000;
 function Votingpage({ data }) {
   const { roomid } = useParams();
   const { showError, showSuccess } = useToast();
-  const { isConnected, sendMessage } = useSocket();
-
-  const currentUserId = localStorage.getItem("uid");
+  const { isConnected, socketUserId, sendMessage } = useSocket();
 
   const [start, setStart] = useState(true);
   const [totalv, setTotalv] = useState(0);
@@ -27,7 +25,7 @@ function Votingpage({ data }) {
   const hasRedirectedRef = useRef(false);
 
  
-  if (!data?.topics || !currentUserId) {
+  if (!data?.topics || !socketUserId) {
     return <Loader message="Loading topics..." />;
   }
 
@@ -37,9 +35,9 @@ function Votingpage({ data }) {
 
    
   const votes = Object.values(data.votes || {});
-  const currentVote = data.votes?.[currentUserId] || null;
+  const currentVote = data.votes?.[socketUserId] || null;
   const votingEndsAt = data.votingStartedAt + VOTING_DURATION_MS;
-  const isHost = data.hostId === currentUserId;
+  const isHost = data.hostId === socketUserId;
   const hasVotes = getTotalVotes(data.votes) > 0;
 
   // ⏱ Timer

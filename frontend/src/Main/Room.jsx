@@ -12,7 +12,6 @@ import RoleRevealPage from "../components/Pages/RoleRevealPage";
 import { Button } from "@mantine/core";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import { useToast } from "../context/Toast";
-import { useSessionUser } from "../context/sessionUser";
 import { useSocket } from "../context/Socketcontext";
 
 const ROLE_REVEAL_DURATION_MS = 4000;
@@ -37,7 +36,6 @@ function Room() {
   const navigate = useNavigate();
   const { showInfo } = useToast();
   const { roomid } = useParams();
-  const sessionUser = useSessionUser();
   
 
   const [roomData, setRoomData] = useState(null);
@@ -48,13 +46,12 @@ function Room() {
   const handledResetRef = useRef(null);
   const awaitingResetRef = useRef(false);
   const lastPlayingMarkerRef = useRef(null);
-  const { isConnected, sendMessage, on, off } = useSocket();
+  const { isConnected, socketUserId, sendMessage, on, off } = useSocket();
 
   useEffect(() => {
     if (!isConnected) return;
 
     const username = localStorage.getItem("username");
-    const uid = sessionUser?.uid || localStorage.getItem("uid");
 
     if (!username) {
       localStorage.setItem("pendingroom", roomid);
@@ -62,7 +59,7 @@ function Room() {
       return;
     }
 
-    if (!uid) {
+    if (!socketUserId) {
       setRoomError("User session is still loading.");
       return;
     }
@@ -70,10 +67,9 @@ function Room() {
     sendMessage({
       type: "join",
       username,
-      uid,
       roomId: roomid,
     });
-  }, [isConnected, navigate, roomid, sendMessage, sessionUser?.uid]);
+  }, [isConnected, navigate, roomid, sendMessage, socketUserId]);
 
   useEffect(() => {
     const handlePageLeave = () => {
@@ -205,7 +201,7 @@ function Room() {
   // }, [roomData, roomid, sessionUser, syncRoomState]);
 
   useEffect(() => {
-    if (!roomData || !sessionUser) {
+    if (!roomData || !socketUserId) {
       setShowRoleReveal(false);
       return;
     }
@@ -221,7 +217,7 @@ function Room() {
       return;
     }
 
-    const currentRole = roomData.players?.[sessionUser.uid]?.role || null;
+    const currentRole = roomData.players?.[socketUserId]?.role || null;
 
     if (!currentRole) {
       console.log("waiting role");
@@ -258,13 +254,13 @@ function Room() {
   }, [
     roomData?.gameState,
     roomData?.currentRound,
-    roomData?.players?.[sessionUser?.uid]?.role,
+    roomData?.players?.[socketUserId]?.role,
     roomid,
-    sessionUser?.uid,
+    socketUserId,
   ]);
 
   useEffect(() => {
-    if (!roomData || !sessionUser) {
+    if (!roomData || !socketUserId) {
       return;
     }
 
@@ -279,7 +275,7 @@ function Room() {
     if (!isTerminalState || !gameEndedAt) {
       return;
     }
-    if (roomData.hostId !== sessionUser.uid) {
+    if (roomData.hostId !== socketUserId) {
       return;
     }
     awaitingResetRef.current = true;
@@ -321,7 +317,7 @@ function Room() {
   if (roomData.gameState === "playing") {
     if (showRoleReveal) {
       return (
-        <RoleRevealPage role={roomData.players?.[sessionUser?.uid]?.role} />
+        <RoleRevealPage role={roomData.players?.[socketUserId]?.role} />
       );
     }
     return <Mainlog data={roomData} />;

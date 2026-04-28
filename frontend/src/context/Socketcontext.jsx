@@ -3,18 +3,15 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 const SocketContext = createContext(null);
 const RECONNECT_DELAY_MS = 1500;
 
-const resolveSocketUrl = (sessionId) => {
+const resolveSocketUrl = () => {
   const configuredUrl = import.meta.env.VITE_WS_URL;
-  const encodedSessionId = encodeURIComponent(String(sessionId || "").trim());
-  const sessionQuery = encodedSessionId ? `?sessionId=${encodedSessionId}` : "";
 
   if (configuredUrl) {
-    const hasQuery = configuredUrl.includes("?");
-    return `${configuredUrl}${hasQuery ? "&" : "?"}sessionId=${encodedSessionId}`;
+    return configuredUrl;
   }
 
   if (typeof window === "undefined") {
-    return `ws://localhost:5001${sessionQuery}`;
+    return "ws://localhost:5001";
   }
 
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -22,10 +19,10 @@ const resolveSocketUrl = (sessionId) => {
   const isLocalHost = host === "localhost" || host === "127.0.0.1";
 
   if (isLocalHost) {
-    return `${protocol}://${host}:5001${sessionQuery}`;
+    return `${protocol}://${host}:5001`;
   }
 
-  return `${protocol}://${window.location.host}${sessionQuery}`;
+  return `${protocol}://${window.location.host}`;
 };
 
 export const useSocket = () => useContext(SocketContext);
@@ -37,8 +34,8 @@ export const SocketProvider = ({ children }) => {
   const requestCounterRef = useRef(0);
   const cleanupSocketRef = useRef(() => {});
   const reconnectTimerRef = useRef(null);
-  const sessionIdRef = useRef(localStorage.getItem("uid") || "");
   const [isConnected, setIsConnected] = useState(false);
+  const [socketUserId, setSocketUserId] = useState("");
 
   useEffect(() => {
     let disposed = false;
@@ -51,7 +48,7 @@ export const SocketProvider = ({ children }) => {
     };
 
     const connect = () => {
-      const socket = new WebSocket(resolveSocketUrl(sessionIdRef.current));
+      const socket = new WebSocket(resolveSocketUrl());
       socketRef.current = socket;
 
       let manuallyClosed = false;
@@ -108,12 +105,12 @@ export const SocketProvider = ({ children }) => {
           }
         }
 
-        if (data.type === "session") {
-          const nextSessionId = String(data.sessionId || "").trim();
-          if (nextSessionId) {
-            sessionIdRef.current = nextSessionId;
-            localStorage.setItem("uid", nextSessionId);
-            window.dispatchEvent(new Event("session-user-changed"));
+        if (data.type === "identity") {
+          const nextUserId = String(data.userId || "").trim();
+          setSocketUserId(nextUserId);
+          if (nextUserId) {
+            window.__socketUserId = nextUserId;
+            window.dispatchEvent(new Event("socket-user-changed"));
           }
         }
 
@@ -137,12 +134,7 @@ export const SocketProvider = ({ children }) => {
       throw new Error("Socket is not connected.");
     }
 
-    socketRef.current.send(
-      JSON.stringify({
-        ...data,
-        sessionId: sessionIdRef.current,
-      }),
-    );
+    socketRef.current.send(JSON.stringify(data));
   };
 
   const sendRequest = (data) => {
@@ -184,6 +176,7 @@ export const SocketProvider = ({ children }) => {
       value={{
         socket: socketRef.current,
         isConnected,
+        socketUserId,
         sendMessage,
         sendRequest,
         on,

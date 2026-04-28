@@ -8,17 +8,15 @@ import { useSocket } from "../context/Socketcontext";
 function StartButton({ data }) {
   const { roomid } = useParams();
   const { showError } = useToast();
-  const { isConnected, sendMessage } = useSocket();
-
-  const currentUserId = localStorage.getItem("uid");  
+  const { isConnected, socketUserId, sendMessage } = useSocket();
 
   const [isStarting, setIsStarting] = useState(false);
 
-  if (!data || !currentUserId) {
+  if (!data || !socketUserId) {
     return <Loader message="Loading room..." compact />;
   }
 
-  if (!data.players?.[currentUserId]) {
+  if (!data.players?.[socketUserId]) {
     return <Loader message="Joining room..." compact />;
   }
 
@@ -58,7 +56,7 @@ function StartButton({ data }) {
     return <Loader message="Starting voting..." compact />;
   }
 
-  return data.hostId === currentUserId ? (
+  return data.hostId === socketUserId ? (
     <button className="game-btn" onClick={handleStartVoting}>
       Start voting
     </button>

@@ -1,29 +1,36 @@
 import { useEffect, useState } from "react";
 
+let runtimeUserId = null;
+
 export const readSessionUser = () => {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const uid = localStorage.getItem("uid");
+  if (!runtimeUserId && typeof window.__socketUserId === "string") {
+    runtimeUserId = window.__socketUserId.trim() || null;
+  }
+
   const name = localStorage.getItem("username") || "";
 
-  if (!uid) {
+  if (!runtimeUserId) {
     return null;
   }
 
   return {
-    uid,
+    uid: runtimeUserId,
     name,
   };
 };
 
 export const syncSessionUser = (user) => {
-  if (typeof window === "undefined" || !user?.uid) {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  localStorage.setItem("uid", user.uid);
+  if (typeof user?.uid === "string" && user.uid.trim()) {
+    runtimeUserId = user.uid.trim();
+  }
 
   if (typeof user.name === "string") {
     localStorage.setItem("username", user.name);
@@ -35,20 +42,11 @@ export const syncSessionUser = (user) => {
 };
 
 export const ensureSessionUser = (name = "") => {
-  const existingUser = readSessionUser();
-
-  if (existingUser?.uid) {
-    if (name && existingUser.name !== name) {
-      return syncSessionUser({ ...existingUser, name });
-    }
-
-    return existingUser;
+  const existingUser = readSessionUser() || { uid: runtimeUserId, name: "" };
+  if (name && existingUser.name !== name) {
+    return syncSessionUser({ ...existingUser, name });
   }
-
-  return syncSessionUser({
-    uid: crypto.randomUUID(),
-    name,
-  });
+  return existingUser;
 };
 
 export const useSessionUser = () => {
@@ -61,10 +59,12 @@ export const useSessionUser = () => {
 
     window.addEventListener("storage", updateSessionUser);
     window.addEventListener("session-user-changed", updateSessionUser);
+    window.addEventListener("socket-user-changed", updateSessionUser);
 
     return () => {
       window.removeEventListener("storage", updateSessionUser);
       window.removeEventListener("session-user-changed", updateSessionUser);
+      window.removeEventListener("socket-user-changed", updateSessionUser);
     };
   }, []);
 

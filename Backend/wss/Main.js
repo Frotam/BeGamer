@@ -1,6 +1,5 @@
 const WebSocket = require("ws");
 const { randomUUID } = require("crypto");
-const { URL } = require("url");
 const { buildInitialRoomData } = require("../Roomactions/payload");
 const { rooms, yDocs } = require("../roomsStore");
 const {
@@ -152,7 +151,6 @@ const {
 function registerRoom(server) {
   const wss = new WebSocket.Server({ server });
   const activeCodeReviews = new Set();
-  const sessionStore = new Map();
 
   const send = (ws, payload) => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -180,57 +178,6 @@ function registerRoom(server) {
     });
   };
 
-  const isValidSessionId = (value) => {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      String(value || ""),
-    );
-  };
-
-  const createSessionId = () => {
-    let sessionId = randomUUID();
-    while (sessionStore.has(sessionId)) {
-      sessionId = randomUUID();
-    }
-    sessionStore.set(sessionId, { createdAt: Date.now(), lastSeenAt: Date.now() });
-    return sessionId;
-  };
-
-  const resolveInitialSessionId = (request) => {
-    try {
-      const parsedUrl = new URL(request.url || "/", "ws://localhost");
-      const candidate = String(parsedUrl.searchParams.get("sessionId") || "").trim();
-      if (isValidSessionId(candidate) && sessionStore.has(candidate)) {
-        sessionStore.get(candidate).lastSeenAt = Date.now();
-        return candidate;
-      }
-    } catch {
-      // Ignore malformed URL and issue a fresh session id.
-    }
-
-    return createSessionId();
-  };
-
-  const assertBoundSession = (ws, payload) => {
-    const providedSessionId = String(payload?.sessionId || "").trim();
-    const boundSessionId = String(ws.sessionId || "").trim();
-
-    if (!providedSessionId || !boundSessionId || providedSessionId !== boundSessionId) {
-      throw new Error("Invalid session.");
-    }
-
-    const session = sessionStore.get(boundSessionId);
-    if (!session) {
-      throw new Error("Session expired.");
-    }
-
-    session.lastSeenAt = Date.now();
-    ws.userId = boundSessionId;
-  };
-
-
-
-  
-
   const countUserSockets = (roomObj, userId) => {
     if (!roomObj || !userId) return 0;
     return (roomObj.sockets || []).filter(
@@ -245,27 +192,6 @@ function registerRoom(server) {
     transferHost(roomObj);
   };
 
-  const startDisconnectedTimer = (roomId, roomObj, userId) => {
-    if (!roomObj.disconnected) roomObj.disconnected = {};
-    if (roomObj.disconnected[userId]?.timeout) return;
-
-    const timeout = setTimeout(() => {
-      if (!rooms[roomId] || !rooms[roomId].disconnected?.[userId]) {
-        return;
-      }
-
-      removePlayer(rooms[roomId], userId);
-      ensureHostExists(rooms[roomId]);
-      delete rooms[roomId].disconnected[userId];
-      broadcastRoomState(roomId);
-    }, 60 * 1000);
-
-    roomObj.disconnected[userId] = {
-      timeout,
-      disconnectedAt: Date.now(),
-    };
-  };
-
   const destroyRoomIfEmpty = (roomId, roomObj) => {
     const playerCount = Object.keys(roomObj?.state?.players || {}).length;
     if (playerCount > 0) return false;
@@ -278,20 +204,6 @@ function registerRoom(server) {
     delete rooms[roomId];
     delete yDocs[roomId];
     return true;
-  };
-
-  const getPlayerIds = (roomObj) => {
-    return Object.keys(roomObj?.state?.players || {});
-  };
-
-  const destroyRoomIfSoloHostDisconnect = (roomId, roomObj, userId) => {
-    const playerIds = getPlayerIds(roomObj);
-    if (playerIds.length === 1 && playerIds[0] === userId) {
-      removePlayer(roomObj, userId);
-      destroyRoomIfEmpty(roomId, roomObj);
-      return true;
-    }
-    return false;
   };
 
   const broadcast = (roomId, payload) => {
@@ -426,15 +338,14 @@ function registerRoom(server) {
     }
   };
 
-  wss.on("connection", (ws, request) => {
-    const sessionId = resolveInitialSessionId(request);
-    ws.sessionId = sessionId;
-    ws.userId = sessionId;
-    ws.user = { uid: sessionId, name: null };
+  wss.on("connection", (ws) => {
+    const userId = randomUUID();
+    ws.userId = userId;
+    ws.user = { uid: userId, name: null };
 
     send(ws, {
-      type: "session",
-      sessionId,
+      type: "identity",
+      userId,
     });
 
     ws.on("message", async (message) => {
@@ -450,11 +361,9 @@ function registerRoom(server) {
       const { requestId } = data;
 
       try {
-        assertBoundSession(ws, data);
-
         if (data.type === "createroom") {
           const username = String(data.username || "").trim();
-          const userId = ws.sessionId;
+          const userId = ws.userId;
           if (!username || !userId) {
             throw new Error("Username is required.");
           }
@@ -526,7 +435,7 @@ function registerRoom(server) {
         if (data.type === "join") {
           const roomId = String(data.roomId || "").trim();
           const username = String(data.username || "").trim();
-          const userId = ws.sessionId;
+          const userId = ws.userId;
 
           if (!roomId || !username || !userId) {
             throw new Error("roomId and username are required.");
@@ -552,11 +461,6 @@ function registerRoom(server) {
           ws.roomId = roomId;
 
           attachSocketToRoom(roomId, ws);
-
-          if (roomObj.disconnected?.[userId]?.timeout) {
-            clearTimeout(roomObj.disconnected[userId].timeout);
-            delete roomObj.disconnected[userId];
-          }
 
           joinRoom(roomId, userId, username);
 
@@ -595,36 +499,19 @@ function registerRoom(server) {
 
           const userId = ws.userId;
 
-          if (roomObj.disconnected?.[userId]?.timeout) {
-            clearTimeout(roomObj.disconnected[userId].timeout);
-            delete roomObj.disconnected[userId];
-          }
-
           roomObj.sockets = roomObj.sockets.filter((client) => client !== ws);
           ws.roomId = null;
 
-          const gameState = roomObj.state?.gameState;
           const hasActiveConnection = countUserSockets(roomObj, userId) > 0;
 
           if (!hasActiveConnection) {
-            if (destroyRoomIfSoloHostDisconnect(roomId, roomObj, userId)) {
+            removePlayer(roomObj, userId);
+            ensureHostExists(roomObj);
+            if (destroyRoomIfEmpty(roomId, roomObj)) {
               sendAck(ws, requestId);
               return;
             }
-
-            if (gameState === "lobby") {
-              removePlayer(roomObj, userId);
-              ensureHostExists(roomObj);
-              if (destroyRoomIfEmpty(roomId, roomObj)) {
-                sendAck(ws, requestId);
-                return;
-              }
-              broadcastRoomState(roomId);
-            } else {
-              startDisconnectedTimer(roomId, roomObj, userId);
-              ensureHostExists(roomObj);
-              broadcastRoomState(roomId);
-            }
+            broadcastRoomState(roomId);
           }
 
           sendAck(ws, requestId);
@@ -774,26 +661,14 @@ function registerRoom(server) {
 
     room.sockets = room.sockets.filter((c) => c !== ws);
 
-    const gameState = room.state?.gameState;
     const hasActiveConnection = countUserSockets(room, userId) > 0;
     if (hasActiveConnection) return;
 
-    if (destroyRoomIfSoloHostDisconnect(roomId, room, userId)) {
-      return;
-    }
-
-    if (gameState === "lobby") {
-      removePlayer(room, userId);
-      ensureHostExists(room);
-      if (destroyRoomIfEmpty(roomId, room)) {
-        return;
-      }
-      broadcastRoomState(roomId);
-      return;
-    }
-
-    startDisconnectedTimer(roomId, room, userId);
+    removePlayer(room, userId);
     ensureHostExists(room);
+    if (destroyRoomIfEmpty(roomId, room)) {
+      return;
+    }
     broadcastRoomState(roomId);
   });
   });
