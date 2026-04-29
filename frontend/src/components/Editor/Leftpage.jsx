@@ -3,7 +3,8 @@ import { useSessionUser } from "../../context/sessionUser";
 import { useEffect } from "react";
 
 export default function Leftpage({ data, taskData }) {
-  const currentUser = localStorage.getItem("uid");
+  const sessionUser = useSessionUser();
+  const currentUser = sessionUser?.uid || localStorage.getItem("uid");
   useEffect(() => {
   console.log("UPDATED taskData in Leftpage:", taskData);
 }, [taskData]);
@@ -18,8 +19,11 @@ export default function Leftpage({ data, taskData }) {
       ? data?.players?.[currentUser]
       : null;
 
-  const role =
-    currentPlayer?.role || "Player";
+  const rawRole = currentPlayer?.role || "Player";
+  const normalizedRole =
+    typeof rawRole === "string" ? rawRole.trim().toLowerCase() : "player";
+  const role = normalizedRole === "imposter" ? "Imposter" : "Player";
+    
 
   const isAlive =
     currentPlayer?.alive !== false;

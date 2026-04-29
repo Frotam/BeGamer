@@ -4,6 +4,7 @@ const { buildLobbyResetPayload } = require("./payload");
 const {
   compareOutputs,
   ensureAlivePlayer,
+  ensureRoomPlayer,
   getAlivePlayerIds,
   getMeetingVoteSummary,
   getRoleTaskConfig,
@@ -56,6 +57,7 @@ const buildTaskState = (snippet) => {
 const runSubmittedCode = async ({ code, language }) => {
   const port = Number(process.env.PORT) || 5000;
   console.log(`[CODE_REVIEW] Running ${language} code (${Buffer.byteLength(code, "utf8")} bytes)`);
+  //  throw new Error("test error")
 
   const response = await fetch(`http://127.0.0.1:${port}/run-code`, {
     method: "POST",
@@ -77,8 +79,8 @@ const runSubmittedCode = async ({ code, language }) => {
   }
 
   if (!response.ok || !payload?.success) {
-    throw new Error(payload?.error || "Compilation failed.");
-  }
+  return `Error: ${payload?.error || "Compilation failed."}`;
+}
 
   console.log(`[CODE_REVIEW] Output: ${JSON.stringify(String(payload.output || ""))}`);
   return String(payload.output || "");
@@ -350,7 +352,7 @@ const finalizeMeeting = (roomId, userId) => {
     throw new Error("Only the host can finish the meeting.");
   }
 
-  ensureAlivePlayer(room, userId);
+  ensureRoomPlayer(room, userId);
 
   if (room.gameState !== "meeting") {
     throw new Error("No meeting is active.");

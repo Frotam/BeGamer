@@ -113,20 +113,13 @@ const joinRoom = (roomId, userId, playerName) => {
     return room;
   }
   const isLiveGame = room.gameState === "playing" || room.gameState === "meeting";
-  const isExistingPlayer = Boolean(existingPlayer?.uid);
-  const isSpectator = isLiveGame && !isExistingPlayer;
+  const isSpectator = isLiveGame;
 
   room.players[userId] = {
     uid: userId,
     name: trimmedName,
-    status: isExistingPlayer
-      ? existingPlayer.status || "alive"
-      : isSpectator
-        ? "spectating"
-        : "alive",
-    alive: isExistingPlayer
-      ? existingPlayer.alive !== false
-      : !isSpectator,
+    status: isSpectator ? "spectating" : "alive",
+    alive: !isSpectator,
     role: existingPlayer?.role || "Player",
     color: existingPlayer?.color,
     connectedAt: Date.now(),

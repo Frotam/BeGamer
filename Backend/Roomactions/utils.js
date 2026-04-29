@@ -232,9 +232,6 @@ const shouldImposterWinByParity = (room) => {
 
   return alivePlayerIds.includes(room.imposterId);
 };
-function countUserSockets(room, userId) {
-  return room.sockets.filter((s) => s.user?.uid === userId).length;
-}
 
 function transferHost(room) {
   const playersById = room.state.players || {};
@@ -274,6 +271,5 @@ module.exports = {
   sanitizeRoleTaskConfig,
   shouldImposterWinByParity,
   removePlayer,
-  countUserSockets,
   transferHost
 };

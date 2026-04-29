@@ -78,8 +78,12 @@ export default function Index({ data }) {
     if (language) {
       setLanguage(language);
     }
-
-    setTaskData(tasks);
+    const rawRole = data?.players?.[currentUser?.uid]?.role;
+    const normalizedRole =
+      typeof rawRole === "string" ? rawRole.trim().toLowerCase() : "";
+    const roleKey = normalizedRole === "imposter" ? "imposter" : "player";
+    setTaskData(tasks?.[roleKey] || null);
+     
   }, [data?.codestate]);
 
   return (

@@ -6,13 +6,11 @@ import { useVotingTimer } from "../voting/useVotingTimer";
 import { MEETING_DURATION_MS } from "../../context/roomActions";
 import { useToast } from "../../context/Toast";
 import SkyBackground from "../Background/SkyBackground";
-import { useSessionUser } from "../../context/sessionUser";
 
 function EmergencyMeetingPage({ data }) {
   const { roomid } = useParams();
-  const { sendRequest } = useSocket();
+  const { sendRequest, socketUserId } = useSocket();
   const { showError } = useToast();
-  const currentUser = useSessionUser();
   const [timeLeft, setTimeLeft] = useState(Math.ceil(MEETING_DURATION_MS / 1000));
   const [isMeetingOpen, setIsMeetingOpen] = useState(true);
   const [isFinishing, setIsFinishing] = useState(false);
@@ -49,16 +47,16 @@ function EmergencyMeetingPage({ data }) {
     }
   }, [chatMessages, isAtBottom]);
 
-  if (!currentUser || !data?.players) {
+  if (!socketUserId || !data?.players) {
     return <Loader message="Loading meeting..." />;
   }
 
   const alivePlayers = Object.values(data.players).filter(
     (player) => player?.alive !== false
   );
-  const isHost = data.hostId === currentUser.uid;
-  const isAlive = data.players?.[currentUser.uid]?.alive !== false;
-  const currentVote = data.meetingVotes?.[currentUser.uid] || null;
+  const isHost = data.hostId === socketUserId;
+  const isAlive = data.players?.[socketUserId]?.alive !== false;
+  const currentVote = data.meetingVotes?.[socketUserId] || null;
   const totalVotes = Object.keys(data.meetingVotes || {}).length;
   const meetingEndsAt = (data.meetingStartedAt || 0) + MEETING_DURATION_MS;
 
@@ -233,13 +231,13 @@ function EmergencyMeetingPage({ data }) {
             className="chat-sender"
             style={{
               color:
-                chat.uid === currentUser?.uid
+                chat.uid === socketUserId
                   ? "#4caf50"
                   : "#2f80ff",
-            }}
-          >
-            {chat.uid === currentUser?.uid ? "You" : chat.name}:
-          </strong>{" "}
+             }}
+           >
+             {chat.uid === socketUserId ? "You" : chat.name}:
+           </strong>{" "}
           <span>{chat.text}</span>
         </div>
       ))

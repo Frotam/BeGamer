@@ -6,7 +6,7 @@ const path = require("path");
 const http = require("http");
 const { spawn } = require("child_process");
 const rateLimit = require("express-rate-limit");
-const registerRoom = require("./wss/Main");
+const registerRoom = require("./websocket");
 require("dotenv").config();
 
 const app = express();
@@ -93,8 +93,17 @@ function runDocker({ image, cmd, cwd }) {
     child.stdout.on("data", (c) => {
       output = collect(c, output);
     });
+
     child.stderr.on("data", (c) => {
       error = collect(c, error);
+    });
+
+    child.on("error", () => {
+      clearTimeout(timer);
+      return resolve({
+        success: false,
+        error: "Docker not installed or not available",
+      });
     });
 
     child.on("close", (code) => {
@@ -115,7 +124,6 @@ function runDocker({ image, cmd, cwd }) {
     });
   });
 }
-
 async function handleRun(req, res) {
   const { code, language } = req.body;
 
