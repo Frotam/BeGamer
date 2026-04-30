@@ -11,7 +11,9 @@ function EmergencyMeetingPage({ data }) {
   const { roomid } = useParams();
   const { sendRequest, socketUserId } = useSocket();
   const { showError } = useToast();
-  const [timeLeft, setTimeLeft] = useState(Math.ceil(MEETING_DURATION_MS / 1000));
+  const [timeLeft, setTimeLeft] = useState(
+    Math.ceil(MEETING_DURATION_MS / 1000),
+  );
   const [isMeetingOpen, setIsMeetingOpen] = useState(true);
   const [isFinishing, setIsFinishing] = useState(false);
   const [resolutionMessage, setResolutionMessage] = useState("");
@@ -52,7 +54,7 @@ function EmergencyMeetingPage({ data }) {
   }
 
   const alivePlayers = Object.values(data.players).filter(
-    (player) => player?.alive !== false
+    (player) => player?.alive !== false,
   );
   const isHost = data.hostId === socketUserId;
   const isAlive = data.players?.[socketUserId]?.alive !== false;
@@ -104,7 +106,9 @@ function EmergencyMeetingPage({ data }) {
       .map(([targetId]) => targetId);
 
     const resolvedMessage =
-      highestVoteCount === 0 || topTargets.length !== 1 || topTargets[0] === "skip"
+      highestVoteCount === 0 ||
+      topTargets.length !== 1 ||
+      topTargets[0] === "skip"
         ? "Everyone skipped. Returning to the game..."
         : `${data.players?.[topTargets[0]]?.name || "A player"} was voted out. Returning to the game...`;
 
@@ -112,21 +116,29 @@ function EmergencyMeetingPage({ data }) {
 
     if (!isHost) return;
 
-      const timeout = setTimeout(async () => {
-        try {
-          setIsFinishing(true);
-          await sendRequest({
-            type: "finalizeMeeting",
-            roomId: roomid,
-          });
-        } catch (error) {
-          setIsFinishing(false);
-          showError(error.message);
-        }
-      }, 2000);
+    const timeout = setTimeout(async () => {
+      try {
+        setIsFinishing(true);
+        await sendRequest({
+          type: "finalizeMeeting",
+          roomId: roomid,
+        });
+      } catch (error) {
+        setIsFinishing(false);
+        showError(error.message);
+      }
+    }, 2000);
 
     return () => clearTimeout(timeout);
-  }, [data.meetingVotes, data.players, isHost, isMeetingOpen, roomid, sendRequest, showError]);
+  }, [
+    data.meetingVotes,
+    data.players,
+    isHost,
+    isMeetingOpen,
+    roomid,
+    sendRequest,
+    showError,
+  ]);
 
   const handleVote = async (targetId) => {
     if (!isMeetingOpen || !isAlive) return;
@@ -174,10 +186,13 @@ function EmergencyMeetingPage({ data }) {
             <span className="sky-kicker arcade">Emergency Meeting</span>
             <h1 className="arcade">Discuss and vote</h1>
             <p className="emergency-reason">
-              {data.meetingReason || "Discuss carefully and vote out the saboteur."}
+              {data.meetingReason ||
+                "Discuss carefully and vote out the saboteur."}
             </p>
             {!isAlive && (
-              <p className="spectating-notice">You are spectating this meeting.</p>
+              <p className="spectating-notice">
+                You are spectating this meeting.
+              </p>
             )}
           </div>
 
@@ -194,7 +209,11 @@ function EmergencyMeetingPage({ data }) {
                     disabled={!isAlive || !isMeetingOpen}
                   >
                     <span>Vote {player.name}</span>
-                    <span>{currentVote === player.uid ? "Your vote" : "Tap to choose"}</span>
+                    <span>
+                      {currentVote === player.uid
+                        ? "Your vote"
+                        : "Tap to choose"}
+                    </span>
                   </button>
                 ))}
 
@@ -204,65 +223,139 @@ function EmergencyMeetingPage({ data }) {
                   disabled={!isAlive || !isMeetingOpen}
                 >
                   <span>Skip vote</span>
-                  <span>{currentVote === "skip" ? "Your vote" : "Stay neutral"}</span>
+                  <span>
+                    {currentVote === "skip" ? "Your vote" : "Stay neutral"}
+                  </span>
                 </button>
               </div>
 
               <p className="vote-status">Total votes: {totalVotes}</p>
 
-              {!isMeetingOpen && <p className="resolution-message">{resolutionMessage}</p>}
+              {!isMeetingOpen && (
+                <p className="resolution-message">{resolutionMessage}</p>
+              )}
               {!isMeetingOpen && !isHost && (
                 <Loader message="Returning to the game..." />
               )}
             </div>
 
-            <div className="chat-section">
-  <h3 className="chat-header">Discussion Chat</h3>
+           <div
+  className="chat-section d-flex flex-column arcade"
+  style={{
+    width: "260px",
+    height: "320px",
+    background: "#0f172a",
+    border: "2px solid #22c55e",
+    boxShadow: "4px 4px 0px #22c55e",
+    color: "#e5e7eb",
+    overflow: "hidden"
+  }}
+>
 
+  {/* HEADER */}
+  <h6
+    className="mb-0 p-2"
+    style={{
+      borderBottom: "2px solid #22c55e",
+      background: "#020617",
+      color: "#38bdf8",
+      letterSpacing: "1px",
+      fontSize: "12px"
+    }}
+  >
+    DISCUSSION CHAT
+  </h6>
+
+  {/* MESSAGES */}
   <div
-    className="chat-messages"
+    className="chat-messages flex-grow-1 p-2"
     ref={chatContainerRef}
     onScroll={handleScroll}
+    style={{
+      overflowY: "auto",
+      fontSize: "12px",
+      background: "#020617",
+      minHeight: 0
+    }}
   >
     {chatMessages.length > 0 ? (
       chatMessages.map((chat) => (
-        <div key={chat.id} className="chat-message">
+        <div
+          key={chat.id}
+          className="mb-1"
+          style={{ wordBreak: "break-word" }}
+        >
           <strong
-            className="chat-sender"
             style={{
               color:
                 chat.uid === socketUserId
-                  ? "#4caf50"
-                  : "#2f80ff",
-             }}
-           >
-             {chat.uid === socketUserId ? "You" : chat.name}:
-           </strong>{" "}
-          <span>{chat.text}</span>
+                  ? "#22c55e"
+                  : "#38bdf8",
+              fontSize: "11px"
+            }}
+          >
+            {chat.uid === socketUserId ? "YOU" : chat.name}:
+          </strong>{" "}
+          <span style={{ color: "#e5e7eb" }}>
+            {chat.text}
+          </span>
         </div>
       ))
     ) : (
-      <p className="no-messages">No messages yet.</p>
+      <p
+        className="mb-0"
+        style={{
+          color: "#64748b",
+          fontSize: "11px"
+        }}
+      >
+        no messages yet...
+      </p>
     )}
   </div>
 
-  <form onSubmit={handleSendMessage} className="chat-form">
+  {/* INPUT */}
+  <form
+    onSubmit={handleSendMessage}
+    className="d-flex gap-1 p-2"
+    style={{
+      borderTop: "2px solid #22c55e",
+      background: "#020617"
+    }}
+  >
     <input
       type="text"
       value={message}
       onChange={(event) => setMessage(event.target.value)}
-      placeholder="Send a message..."
+      placeholder="type..."
       disabled={!isAlive}
-      className="chat-input"
+      className="form-control form-control-sm"
+      style={{
+        background: "#020617",
+        border: "2px solid #38bdf8",
+        color: "#e5e7eb",
+        fontSize: "12px",
+        minWidth: 0
+      }}
     />
+
     <button
       type="submit"
       disabled={isSending || !message.trim() || !isAlive}
-      className="chat-send-btn"
+      className="btn btn-sm arcade"
+      style={{
+        background: "#22c55e",
+        border: "2px solid #16a34a",
+        color: "#020617",
+        fontSize: "11px",
+        boxShadow: "2px 2px 0px #16a34a",
+        fontWeight: "bold"
+      }}
     >
-      {isSending ? "..." : "Send"}
+      {isSending ? "..." : "SEND"}
     </button>
   </form>
+
 </div>
           </div>
         </div>
