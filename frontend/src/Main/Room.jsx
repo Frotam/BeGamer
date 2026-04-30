@@ -18,16 +18,13 @@ import { useRoomAutoReset } from "./hooks/useRoomAutoReset";
 import { useRoomJoin } from "./hooks/useRoomJoin";
 import { useRoomLeaveProtection } from "./hooks/useRoomLeaveProtection";
 import { useRoomSocketState } from "./hooks/useRoomSocketState";
-import {
-  isTerminalGameState,
-} from "./utils/roomState";
+import { isTerminalGameState } from "./utils/roomState";
 
 function Room() {
   const location = useLocation();
   const navigate = useNavigate();
   const { showInfo } = useToast();
   const { roomid } = useParams();
-  
 
   const [roomData, setRoomData] = useState(null);
   const [roomError, setRoomError] = useState("");
@@ -35,14 +32,14 @@ function Room() {
   const currentPlayer = socketUserId ? roomData?.players?.[socketUserId] : null;
   const currentRole = currentPlayer?.role || null;
   const isAlivePlayer = currentPlayer?.alive !== false;
-  const { showRoleReveal, setShowRoleReveal } = useRoleReveal({
+  const { showRoleReveal, setShowRoleReveal } = useRoleReveal({ // revel the role sets a local storage key helping to not make rerenders 
     currentRole,
     currentRound: roomData?.currentRound,
     gameState: roomData?.gameState,
     roomId: roomid,
   });
 
-  useRoomJoin({
+  useRoomJoin({ // this is helping to identify that is username their or not 
     isConnected,
     navigate,
     roomId: roomid,
@@ -50,13 +47,7 @@ function Room() {
     setRoomError,
     socketUserId,
   });
-  useRoomLeaveProtection({
-    gameState: roomData?.gameState,
-    isAlivePlayer,
-    roomId: roomid,
-    sendMessage,
-  });
-  useRoomSocketState({
+  useRoomSocketState({ // this is ccausing the data to be rendered  here 
     navigate,
     off,
     on,
@@ -66,6 +57,12 @@ function Room() {
   useBackNavigationGuard({
     gameState: roomData?.gameState,
     showInfo,
+  });
+  useRoomLeaveProtection({// creates a clone of the window so  player can not press bacck while playing or meeting
+    gameState: roomData?.gameState,
+    isAlivePlayer,
+    roomId: roomid,
+    sendMessage,
   });
   useRoomAutoReset({
     gameEndedAt: roomData?.gameEndedAt,
@@ -82,15 +79,13 @@ function Room() {
     const fullUrl = `${window.location.origin}${location.pathname}${location.search}${location.hash}`;
     navigator.clipboard.writeText(fullUrl);
   };
-  
+
   if (roomError) return <h2>{roomError}</h2>;
 
   if (!roomData) return <Loader message="Joining room..." />;
   if (roomData.gameState === "playing") {
     if (showRoleReveal) {
-      return (
-        <RoleRevealPage role={roomData.players?.[socketUserId]?.role} />
-      );
+      return <RoleRevealPage role={roomData.players?.[socketUserId]?.role} />;
     }
     return <Mainlog data={roomData} />;
   }

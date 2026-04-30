@@ -28,8 +28,8 @@ export const useRoomLeaveProtection = ({
       handlePageLeave();
     };
 
-    window.addEventListener("pagehide", handlePageLeave);
-    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageLeave); // tabswitching mobiles 
+    window.addEventListener("beforeunload", handleBeforeUnload); // reload close,navigate away 
 
     return () => {
       window.removeEventListener("pagehide", handlePageLeave);

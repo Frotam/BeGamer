@@ -8,7 +8,7 @@ import SkyBackground from "../Background/SkyBackground";
 import { useToast } from "../../context/Toast";
 import { useSocket } from "../../context/Socketcontext";
 
-const VOTING_DURATION_MS = 15000;
+const VOTING_DURATION_MS = 15000; // make env
 
 function Votingpage({ data }) {
   const { roomid } = useParams();

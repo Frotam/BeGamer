@@ -51,13 +51,13 @@ function Home() {
     if (!isConnected) {
       showError("WebSocket is not connected yet.");
       return;
-    }
+    } // cheking connnection 
 
     const roomId = roomInput.current?.value.trim() || "";
     if (!roomId) {
       showError("Room Code is Empty");
       return;
-    }
+    } // checking room idd 
 
     try {
       const name = getName();
