@@ -34,8 +34,28 @@ const PLAYER_COLORS = [
 const CODE_RUN_REQUEST_TIMEOUT_MS = 15000;
 const SUPPORTED_CODE_LANGUAGES = new Set(["cpp", "javascript", "python"]);
 
-const getBackendUrl = (fallbackUrl = "http://localhost:5000") => {
-  return import.meta.env.VITE_BACKEND_URL || fallbackUrl;
+const normalizeBaseUrl = (value) => value.replace(/\/+$/, "");
+
+const getBackendUrl = () => {
+  const configuredUrl = import.meta.env.VITE_BACKEND_URL?.trim();
+
+  if (configuredUrl) {
+    return normalizeBaseUrl(configuredUrl);
+  }
+
+  if (typeof window === "undefined") {
+    return "http://localhost:5001";
+  }
+
+  const protocol = window.location.protocol;
+  const host = window.location.hostname;
+  const isLocalHost = host === "localhost" || host === "127.0.0.1";
+
+  if (isLocalHost) {
+    return `${protocol}//${host}:5001`;
+  }
+
+  return normalizeBaseUrl(window.location.origin);
 };
 
 const parseCodeRunResponse = async (response) => {
@@ -61,7 +81,7 @@ const runSubmittedCode = async ({ code, language }) => {
   }, CODE_RUN_REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${getBackendUrl("http://localhost:5001")}/run-code`, {
+    const response = await fetch(`${getBackendUrl()}/run-code`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

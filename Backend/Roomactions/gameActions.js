@@ -21,6 +21,7 @@ const { log } = require("console");
 
 const TOTAL_GAME_ROUNDS = 3;
 const SUPPORTED_CODE_LANGUAGES = new Set(["cpp", "javascript", "python"]);
+const INTERNAL_BACKEND_URL = process.env.INTERNAL_BACKEND_URL;
 
 const getRoomState = (roomId) => {
   const roomObj = rooms[roomId];
@@ -57,10 +58,11 @@ const buildTaskState = (snippet) => {
 
 const runSubmittedCode = async ({ code, language }) => {
   const port = Number(process.env.PORT) || 5000;
+  const backendUrl = INTERNAL_BACKEND_URL || `http://127.0.0.1:${port}`;
   console.log(`[CODE_REVIEW] Running ${language} code (${Buffer.byteLength(code, "utf8")} bytes)`);
   //  throw new Error("test error")
 
-  const response = await fetch(`http://127.0.0.1:${port}/run-code`, {
+  const response = await fetch(`${backendUrl}/run-code`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
