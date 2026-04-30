@@ -17,6 +17,7 @@ const {
   sanitizeRoleTaskConfig,
   shouldImposterWinByParity,
 } = require("./utils");
+const { log } = require("console");
 
 const TOTAL_GAME_ROUNDS = 3;
 const SUPPORTED_CODE_LANGUAGES = new Set(["cpp", "javascript", "python"]);
@@ -239,6 +240,8 @@ const resolveCodeRun = (roomId, userId, snippet, submittedOutput) => {
 
   const matchesPlayerOutput = compareOutputs(submittedOutput, playerTask);
   const matchesImposterOutput = compareOutputs(submittedOutput, imposterTask);
+  console.log(submittedOutput,playerTask);
+  
 
   room.codeRunPending = false;
   room.codeRunRequestedAt = null;

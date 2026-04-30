@@ -1,11 +1,10 @@
 const express = require("express");
 const cors = require("cors");
-const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
 const http = require("http");
 const { spawn } = require("child_process");
 const rateLimit = require("express-rate-limit");
+const path = require("path");
+const fs = require("fs");
 const registerRoom = require("./websocket");
 require("dotenv").config();
 
@@ -19,51 +18,114 @@ app.use(
   rateLimit({
     windowMs: 60 * 1000,
     max: 20,
-  }),
+  })
 );
 
 const PORT = Number(process.env.PORT) || 5001;
 const RUN_TIMEOUT_MS = 5000;
 const MAX_CODE_BYTES = 100 * 1024;
 const MAX_OUTPUT_BYTES = 64 * 1024;
-const BASE_TEMP = path.join(process.cwd(), "temp");
+const DOCKER_CPP_IMAGE = process.env.DOCKER_CPP_IMAGE || "begameer-cpp-runner";
+const CPP_DOCKERFILE = path.join(process.cwd(), "Dockerfile.cpp");
 
-function createRunDir() {
-  const id = crypto.randomUUID();
-  const dir = path.join(BASE_TEMP, id);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  return dir;
+let cppImageReadyPromise = null;
+
+function runCommand(command, args) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args);
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      resolve({
+        ok: false,
+        code: null,
+        stdout,
+        stderr: error.message || stderr,
+      });
+    });
+
+    child.on("close", (code) => {
+      resolve({
+        ok: code === 0,
+        code,
+        stdout,
+        stderr,
+      });
+    });
+  });
 }
 
-function cleanup(dir) {
-  fs.rm(dir, { recursive: true, force: true }, () => {});
+async function ensureCppImage() {
+  if (cppImageReadyPromise) {
+    return cppImageReadyPromise;
+  }
+
+  cppImageReadyPromise = (async () => {
+    const inspectResult = await runCommand("docker", [
+      "image",
+      "inspect",
+      DOCKER_CPP_IMAGE,
+    ]);
+
+    if (inspectResult.ok) {
+      return;
+    }
+
+    if (!fs.existsSync(CPP_DOCKERFILE)) {
+      throw new Error("Dockerfile.cpp not found");
+    }
+
+    const buildResult = await runCommand("docker", [
+      "build",
+      "-f",
+      CPP_DOCKERFILE,
+      "-t",
+      DOCKER_CPP_IMAGE,
+      process.cwd(),
+    ]);
+
+    if (!buildResult.ok) {
+      const message =
+        buildResult.stderr.trim() || buildResult.stdout.trim() || "Unknown error";
+      throw new Error(`Failed to build ${DOCKER_CPP_IMAGE}: ${message}`);
+    }
+  })();
+
+  try {
+    await cppImageReadyPromise;
+  } catch (error) {
+    cppImageReadyPromise = null;
+    throw error;
+  }
 }
 
-function writeFile(dir, name, content) {
-  const file = path.join(dir, name);
-  fs.writeFileSync(file, content);
-  return file;
-}
-
-function runDocker({ image, cmd, cwd }) {
+function runDocker({ image, cmd, stdin }) {
   return new Promise((resolve) => {
     const child = spawn("docker", [
       "run",
       "--rm",
+      "-i",
       "--network=none",
       "--cpus=0.5",
       "--memory=256m",
       "--pids-limit=64",
-      "--read-only",
-      "--tmpfs",
-      "/tmp:rw,size=64m",
       "--security-opt",
       "no-new-privileges",
       "--cap-drop=ALL",
-      "-u",
-      "1000:1000",
-      "-v",
-      `${cwd}:/workspace:ro`,
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=64m",
+      "--tmpfs",
+      "/workspace:rw,exec,size=64m,uid=1000,gid=1000,mode=700",
       "-w",
       "/workspace",
       image,
@@ -90,19 +152,19 @@ function runDocker({ image, cmd, cwd }) {
       return target + chunk.toString();
     };
 
-    child.stdout.on("data", (c) => {
-      output = collect(c, output);
+    child.stdout.on("data", (chunk) => {
+      output = collect(chunk, output);
     });
 
-    child.stderr.on("data", (c) => {
-      error = collect(c, error);
+    child.stderr.on("data", (chunk) => {
+      error = collect(chunk, error);
     });
 
     child.on("error", () => {
       clearTimeout(timer);
-      return resolve({
+      resolve({
         success: false,
-        error: "Docker not installed or not available",
+        error: "Docker not available",
       });
     });
 
@@ -110,24 +172,36 @@ function runDocker({ image, cmd, cwd }) {
       clearTimeout(timer);
 
       if (killed) {
-        return resolve({
+        resolve({
           success: false,
           error: "Timeout or output limit exceeded",
         });
+        return;
       }
 
       if (code !== 0) {
-        return resolve({ success: false, error: error || "Execution failed" });
+        resolve({
+          success: false,
+          error: error || "Execution failed",
+        });
+        return;
       }
 
-      return resolve({ success: true, output });
+      resolve({ success: true, output });
     });
+
+    if (typeof stdin === "string") {
+      child.stdin.end(stdin);
+    } else {
+      child.stdin.end();
+    }
   });
 }
+
 async function handleRun(req, res) {
   const { code, language } = req.body;
 
-  if (typeof code !== "string" || !language) {
+  if (typeof code !== "string" || typeof language !== "string") {
     return res.status(400).json({ success: false, error: "Invalid input" });
   }
 
@@ -135,31 +209,31 @@ async function handleRun(req, res) {
     return res.status(413).json({ success: false, error: "Code too large" });
   }
 
-  const runDir = createRunDir();
-
   try {
     let result;
 
     if (language === "javascript") {
-      writeFile(runDir, "main.js", code);
       result = await runDocker({
         image: "node:20-alpine",
-        cmd: ["node", "main.js"],
-        cwd: runDir,
+        cmd: ["sh", "-c", "cat > main.js && node main.js"],
+        stdin: code,
       });
     } else if (language === "python") {
-      writeFile(runDir, "main.py", code);
       result = await runDocker({
         image: "python:3.11-alpine",
-        cmd: ["python3", "main.py"],
-        cwd: runDir,
+        cmd: ["sh", "-c", "cat > main.py && python3 main.py"],
+        stdin: code,
       });
     } else if (language === "cpp") {
-      writeFile(runDir, "main.cpp", code);
+      await ensureCppImage();
       result = await runDocker({
-        image: "gcc:13",
-        cmd: ["sh", "-c", "g++ main.cpp -O0 -std=c++17 -o main && ./main"],
-        cwd: runDir,
+        image: DOCKER_CPP_IMAGE,
+        cmd: [
+          "sh",
+          "-c",
+          "cat > main.cpp && g++ main.cpp -O2 -std=c++17 -o main && ./main",
+        ],
+        stdin: code,
       });
     } else {
       return res
@@ -172,8 +246,11 @@ async function handleRun(req, res) {
     }
 
     return res.json({ success: true, output: result.output });
-  } finally {
-    cleanup(runDir);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Internal server error",
+    });
   }
 }
 
@@ -182,7 +259,7 @@ app.post("/run-code", (req, res) => {
 });
 
 app.get("/", (_req, res) => {
-  res.send("hello");
+  res.send("OK");
 });
 
 const server = http.createServer(app);
@@ -190,9 +267,4 @@ registerRoom(server);
 
 server.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
-});
-
-server.on("error", (err) => {
-  console.error(`Server failed to start on port ${PORT}:`, err.message);
-  process.exit(1);
 });

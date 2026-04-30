@@ -1,24 +1,28 @@
-FROM node:18
+# Use official Node image
+FROM node:20-alpine
 
-# install compilers
-RUN apt-get update && apt-get install -y \
- python3 \
- python3-pip \
- g++ \
- build-essential \
- bash \
- curl
-
-WORKDIR /app
-
-COPY package*.json ./
-
-RUN npm install
-
-COPY . .
+# Install docker CLI (needed for spawn("docker"))
+RUN apk add --no-cache docker-cli
 
 ENV NODE_ENV=production
 
-EXPOSE 10000
+# Create app directory
+WORKDIR /app
 
-CMD ["node","index.js"]
+# Copy package files first (better caching)
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --omit=dev
+
+# Copy rest of the code
+COPY . .
+
+# Create temp directory safely
+RUN mkdir -p temp && chmod 700 temp
+
+# Expose port
+EXPOSE 5001
+
+# Start server
+CMD ["node", "index.js"]
