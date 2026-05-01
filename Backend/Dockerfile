@@ -16,7 +16,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 # Copy rest of the code
-COPY . .
+    COPY . .
 
 # Create temp directory safely
 RUN mkdir -p temp && chmod 700 temp

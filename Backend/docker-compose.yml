@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "5001:5001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+    env_file:
+      - .env
+  redis:
+    image: redis
+    ports:
+      - "5002:6379"
+    volumes:
+      - redis-data:/data #created a  file so our data is never loosed when we rrestart our container or anything 
+volumes:
+  redis-data:
