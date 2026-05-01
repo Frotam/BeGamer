@@ -23,9 +23,9 @@ const MAX_CODE_BYTES = 100 * 1024;
 
 // 🟢 Runner endpoints
 const RUNNERS = {
-  cpp: ["http://localhost:4001"],
-  javascript: ["http://localhost:4002"],
-  python: ["http://localhost:4003"],
+    cpp: process.env.CPP_RUNNERS.split(","),
+  javascript: process.env.JS_RUNNERS.split(","),
+  python: process.env.PY_RUNNERS.split(","),
 };
 
 // 🟢 simple load balancing
