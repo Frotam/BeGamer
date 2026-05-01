@@ -3,7 +3,7 @@ const cors = require("cors");
 const http = require("http");
 const rateLimit = require("express-rate-limit");
 const registerRoom = require("./websocket");
-const { Queue } = require("bullmq");
+const { Queue, QueueEvents } = require("bullmq");
 require("dotenv").config();
 
 const app = express();
@@ -28,16 +28,28 @@ const connection = {
 
 // ✅ create queue ONCE
 const queue = new Queue("code-runner", { connection });
+const queueEvents = new QueueEvents("code-runner", { connection });
 
 app.post("/run-code", async (req, res) => {
   const { code, language } = req.body;
 
-  const job = await queue.add("run-code", {
-    code,
-    language,
-  });
+  const job = await queue.add("run-code", { code, language });
 
-  res.json({ jobId: job.id });
+  try {
+    const result = await job.waitUntilFinished(queueEvents, 20000);
+    res.json({
+      success: true,
+      output: typeof result === "string" ? result : result?.output ?? "",
+      result,
+      jobId: job.id,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Compilation failed",
+      jobId: job.id,
+    });
+  }
 });
 
 app.get("/", (_req, res) => {
@@ -48,5 +60,5 @@ const server = http.createServer(app);
 registerRoom(server);
 
 server.listen(PORT, () => {
-  console.log(`Server running on ${PORT}...`);
+  console.log(`Server running on ${PORT}..`);
 });

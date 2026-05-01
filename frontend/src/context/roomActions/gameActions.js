@@ -31,7 +31,7 @@ const PLAYER_COLORS = [
   "#7c3aed",
 ];
 
-const CODE_RUN_REQUEST_TIMEOUT_MS = 15000;
+const CODE_RUN_REQUEST_TIMEOUT_MS = 30000;
 const SUPPORTED_CODE_LANGUAGES = new Set(["cpp", "javascript", "python"]);
 
 const normalizeBaseUrl = (value) => value.replace(/\/+$/, "");

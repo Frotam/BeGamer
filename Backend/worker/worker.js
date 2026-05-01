@@ -2,7 +2,7 @@ const express = require("express");
 const { Worker } = require("bullmq");
 require("dotenv").config();
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.WORKERPORT) || 3000;
 const connection = { url: process.env.REDIS_URL };
 
 const parseRunnerList = (value) =>
