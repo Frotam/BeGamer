@@ -23,7 +23,7 @@ const MAX_CODE_BYTES = 100 * 1024;
 
 // 🟢 Runner endpoints
 const RUNNERS = {
-  cpp: ["http://localhost:4001"],
+  cpp: ["https://begamer.onrender.com"],
   javascript: ["http://localhost:4002"],
   python: ["http://localhost:4003"],
 };
