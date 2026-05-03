@@ -16,9 +16,9 @@ const createEditorHandlers = ({
     const doc = getYDoc(roomId);
     const update = Uint8Array.from(data.update);
 
-    updatecode(roomId, roomObj.state.codestate?.code || "", ws.userId);
+    await updatecode(roomId, roomObj.state.codestate?.code || "", ws.userId);
     Y.applyUpdate(doc, update);
-    updatecode(roomId, getFullCodeFromYDoc(roomId), ws.userId);
+    await updatecode(roomId, getFullCodeFromYDoc(roomId), ws.userId);
 
     roomObj.sockets.forEach((client) => {
       if (client !== ws && client.readyState === 1) {
@@ -35,7 +35,7 @@ const createEditorHandlers = ({
 
   const updateCode = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    updatecode(roomId, data.code, ws.userId);
+    await updatecode(roomId, data.code, ws.userId);
     replaceYDocTextFromRoom(roomId);
 
     broadcastRoomState(roomId);
@@ -45,7 +45,7 @@ const createEditorHandlers = ({
 
   const updateCursor = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    updatecursor(roomId, ws.userId, {
+    await updatecursor(roomId, ws.userId, {
       line: data.line,
       column: data.column,
     });

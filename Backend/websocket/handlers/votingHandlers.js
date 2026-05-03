@@ -15,21 +15,21 @@ const createVotingHandlers = ({
 }) => {
   const startVotingHandler = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    startVoting(roomId, ws.userId);
+    await startVoting(roomId, ws.userId);
     broadcastRoomState(roomId);
     sendAck(ws, data.requestId);
   };
 
   const voteHandler = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    voteForTopic(roomId, ws.userId, data.topicId);
+    await voteForTopic(roomId, ws.userId, data.topicId);
     broadcastRoomState(roomId);
     sendAck(ws, data.requestId);
   };
 
   const resetRoomHandler = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    resetRoom(roomId, ws.userId);
+    await resetRoom(roomId, ws.userId);
     replaceYDocTextFromRoom(roomId);
     broadcastRoomState(roomId);
     broadcastYDocState(roomId);
@@ -46,7 +46,7 @@ const createVotingHandlers = ({
     }
 
     const snippet = await fetchSnippetFromFirebase(resolvedWinner);
-    finalizeVotingRound(roomId, ws.userId, snippet);
+    await finalizeVotingRound(roomId, ws.userId, snippet);
     replaceYDocTextFromRoom(roomId);
     broadcastRoomState(roomId);
     broadcastYDocState(roomId);

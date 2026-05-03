@@ -1,3 +1,8 @@
+const {
+  deleteRoomState,
+  syncRoomStateToRedis,
+} = require("../../Roomactions/roomStateStore");
+
 const createRoomLifecycleService = ({ rooms, yDocs, removePlayer, transferHost }) => {
   const countUserSockets = (roomObj, userId) => {
     if (!roomObj || !userId) return 0;
@@ -7,14 +12,14 @@ const createRoomLifecycleService = ({ rooms, yDocs, removePlayer, transferHost }
     ).length;
   };
 
-  const ensureHostExists = (roomObj) => {
+  const ensureHostExists = async (roomId, roomObj) => {
     if (!roomObj?.state) return;
     const hostId = roomObj.state.hostId;
     if (hostId && roomObj.state.players?.[hostId]) return;
-    transferHost(roomObj);
+    await transferHost(roomObj, roomId);
   };
 
-  const destroyRoomIfEmpty = (roomId, roomObj) => {
+  const destroyRoomIfEmpty = async (roomId, roomObj) => {
     const playerCount = Object.keys(roomObj?.state?.players || {}).length;
     if (playerCount > 0) return false;
 
@@ -23,6 +28,8 @@ const createRoomLifecycleService = ({ rooms, yDocs, removePlayer, transferHost }
       roomObj.cleanupTimer = null;
     }
 
+    const playerIds = Object.keys(roomObj?.state?.players || {});
+    await deleteRoomState(roomId, playerIds);
     delete rooms[roomId];
     delete yDocs[roomId];
     return true;
@@ -68,7 +75,7 @@ const createRoomLifecycleService = ({ rooms, yDocs, removePlayer, transferHost }
     }
   };
 
-  const cleanupUserOnClose = (ws, broadcastRoomState) => {
+  const cleanupUserOnClose = async (ws, broadcastRoomState) => {
     const roomId = ws.roomId;
     const room = rooms[roomId];
     if (!roomId || !room) return;
@@ -82,14 +89,15 @@ const createRoomLifecycleService = ({ rooms, yDocs, removePlayer, transferHost }
     if (hasActiveConnection) return;
 
     const removedWasAlive = room.state?.players?.[userId]?.alive !== false;
-    removePlayer(room, userId);
+    await removePlayer(room, roomId, userId);
     resolveGameOnLeaveIfNeeded(room, userId, removedWasAlive);
-    ensureHostExists(room);
+    await ensureHostExists(roomId, room);
 
-    if (destroyRoomIfEmpty(roomId, room)) {
+    if (await destroyRoomIfEmpty(roomId, room)) {
       return;
     }
 
+    await syncRoomStateToRedis(roomId, room.state);
     broadcastRoomState(roomId);
   };
 

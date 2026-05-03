@@ -1,9 +1,12 @@
 const { rooms } = require("../../roomsStore");
 const { buildInitialRoomData } = require("../../Roomactions/payload");
 const { joinRoom } = require("../../Roomactions/Basicactions");
-const redis = require("../../client");
+const {
+  getRoomState,
+  recordRoomCreated,
+  syncRoomStateToRedis,
+} = require("../../Roomactions/roomStateStore");
 
-// const pipline = redis.pipline();
 const createRoomEntryHandlers = ({
   send,
   sendAck,
@@ -24,36 +27,14 @@ const createRoomEntryHandlers = ({
     const roomId = Math.random().toString(36).slice(2, 8);
     const state = buildInitialRoomData(userId, username);
     rooms[roomId] = { sockets: [], state };
-    const player = state.players[userId];
-
-    const pipeline = redis.pipeline();
-
-    pipeline.hset(`room:${roomId}`, {
-      createdAt: state.createdAt,
-      hostId: userId,
-      gameState: state.gameState,
-      currentRound: state.currentRound,
-      successfulRounds: state.successfulRounds,
-      codeRunPending: state.codeRunPending,
-    });
-    pipeline.hset(`room:${roomId}:player:${userId}`, {
-      uid: player.uid,
-      name: player.name,
-      status: player.status,
-      alive: player.alive,
-      role: player.role,
-      connectedAt: player.connectedAt,
-    });
-
-    pipeline.sadd("activeRooms", roomId);
-    pipeline.set(`user:${userId}`, roomId);
-    await pipeline.exec();
+    await syncRoomStateToRedis(roomId, state, { updateUserMappings: true });
+    await recordRoomCreated();
     ws.username = username;
     ws.userId = userId;
     ws.user.uid = userId;
 
     attachSocketToRoom(roomId, ws);
-    joinRoom(roomId, userId, username);
+    await joinRoom(roomId, userId, username);
 
     send(ws, { type: "roomCreated", roomId, state });
     sendAck(ws, data.requestId, { roomId });
@@ -79,10 +60,15 @@ const createRoomEntryHandlers = ({
       throw new Error("roomId and username are required.");
     }
 
-    const roomObj = rooms[roomId];
+    let roomObj = rooms[roomId];
 
     if (!roomObj) {
-      throw new Error("Room not found");
+      await getRoomState(roomId);
+      roomObj = rooms[roomId];
+    }
+
+    if (!roomObj) {
+      throw new Error("Room not found.");
     }
 
     if (roomObj.cleanupTimer) {
@@ -97,7 +83,7 @@ const createRoomEntryHandlers = ({
     ws.roomId = roomId;
 
     attachSocketToRoom(roomId, ws);
-    joinRoom(roomId, userId, username);
+    await joinRoom(roomId, userId, username);
 
     const doc = getYDoc(roomId);
     const state = Y.encodeStateAsUpdate(doc);

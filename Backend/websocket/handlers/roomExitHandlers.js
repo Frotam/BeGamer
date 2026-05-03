@@ -1,4 +1,5 @@
 const { rooms } = require("../../roomsStore");
+const { syncRoomStateToRedis } = require("../../Roomactions/roomStateStore");
 
 const createRoomExitHandlers = ({
   sendAck,
@@ -32,15 +33,16 @@ const createRoomExitHandlers = ({
 
     if (!hasActiveConnection) {
       const removedWasAlive = roomObj.state?.players?.[userId]?.alive !== false;
-      removePlayer(roomObj, userId);
+      await removePlayer(roomObj, roomId, userId);
       resolveGameOnLeaveIfNeeded(roomObj, userId, removedWasAlive);
-      ensureHostExists(roomObj);
+      await ensureHostExists(roomId, roomObj);
 
-      if (destroyRoomIfEmpty(roomId, roomObj)) {
+      if (await destroyRoomIfEmpty(roomId, roomObj)) {
         sendAck(ws, data.requestId);
         return;
       }
 
+      await syncRoomStateToRedis(roomId, roomObj.state);
       broadcastRoomState(roomId);
     }
 

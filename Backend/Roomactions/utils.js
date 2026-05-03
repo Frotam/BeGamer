@@ -1,15 +1,7 @@
-const PLAYER_COLORS = [
-  "#f97316",
-  "#14b8a6",
-  "#8b5cf6",
-  "#ec4899",
-  "#22c55e",
-  "#0ea5e9",
-  "#f59e0b",
-  "#ef4444",
-  "#0f766e",
-  "#7c3aed",
-];
+const Colors = require("./colors");
+const redis = require("../client");
+
+const PLAYER_COLORS = Colors
 
 const getWinningTopic = (votes = {}) => {
   const voteCounts = {};
@@ -44,7 +36,8 @@ const hasUsableCode = (code) => {
 const getSnippetCode = (snippet) => {
   return normalizeStoredCode(snippet?.code || snippet?.starterCode || "");
 };
-function removePlayer(room, userId) {
+
+const removePlayer = async (room, roomId, userId) => {
   delete room.state.players[userId];
   if (room.state.votes) {
     delete room.state.votes[userId];
@@ -55,12 +48,17 @@ function removePlayer(room, userId) {
   if (room.state.codestate?.playersCursor) {
     delete room.state.codestate.playersCursor[userId];
   }
-
-  // also remove sockets of that user
   room.sockets = room.sockets.filter(
-    (s) => s.user?.uid !== userId
+    (s) => s.user?.uid !== userId,
   );
-}
+  const pipeline = redis.pipeline();
+  pipeline.del(`room:${roomId}:player:${userId}`);
+  pipeline.srem(`room:${roomId}:players`, userId);
+  pipeline.hdel(`room:${roomId}:votes`, userId);
+  pipeline.hdel(`room:${roomId}:meetingVotes`, userId);
+  pipeline.del(`user:${userId}`);
+  await pipeline.exec();
+};
 
 const normalizeLockedRanges = (lockedRanges) => {
   if (!Array.isArray(lockedRanges)) {
@@ -233,24 +231,24 @@ const shouldImposterWinByParity = (room) => {
   return alivePlayerIds.includes(room.imposterId);
 };
 
-function transferHost(room) {
+const transferHost = async (room, roomId) => {
   const playersById = room.state.players || {};
   const playerIds = Object.keys(playersById);
-
-  if (playerIds.length === 0) {
-    room.state.hostId = null;
-    return;
+  let newHostId = null;
+  if (playerIds.length > 0) {
+    playerIds.sort((a, b) => {
+      const aTime = Number(playersById[a]?.connectedAt || 0);
+      const bTime = Number(playersById[b]?.connectedAt || 0);
+      return aTime - bTime;
+    });
+    newHostId = playerIds[0];
   }
-
-  // choose earliest connected player
-  playerIds.sort((leftId, rightId) => {
-    const leftConnectedAt = Number(playersById[leftId]?.connectedAt || 0);
-    const rightConnectedAt = Number(playersById[rightId]?.connectedAt || 0);
-    return leftConnectedAt - rightConnectedAt;
+  room.state.hostId = newHostId;
+  await redis.hset(`room:${roomId}`, {
+    hostId: newHostId || "",
   });
+};
 
-  room.state.hostId = playerIds[0];
-}
 module.exports = {
   buildResetPlayers,
   compareOutputs,
@@ -271,5 +269,5 @@ module.exports = {
   sanitizeRoleTaskConfig,
   shouldImposterWinByParity,
   removePlayer,
-  transferHost
+  transferHost,
 };

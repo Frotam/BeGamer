@@ -1,3 +1,5 @@
+const { persistRoomMetadata } = require("../../Roomactions/roomStateStore");
+
 const createYjsCodeService = ({ rooms, yDocs, normalizeStoredCode, Y }) => {
   const splitMainSection = (code = "") => {
     const normalizedCode = String(code || "");
@@ -58,7 +60,7 @@ const createYjsCodeService = ({ rooms, yDocs, normalizeStoredCode, Y }) => {
     return doc;
   };
 
-  const persistRoomCodeFromYDoc = (roomId, fullCode) => {
+  const persistRoomCodeFromYDoc = async (roomId, fullCode) => {
     const roomObj = rooms[roomId];
 
     if (!roomObj?.state?.codestate) {
@@ -79,6 +81,7 @@ const createYjsCodeService = ({ rooms, yDocs, normalizeStoredCode, Y }) => {
     }
 
     roomObj.state.codestate.updatedAt = Date.now();
+    await persistRoomMetadata(roomId, roomObj.state);
   };
 
   const getFullCodeFromYDoc = (roomId) => {
@@ -94,14 +97,14 @@ const createYjsCodeService = ({ rooms, yDocs, normalizeStoredCode, Y }) => {
     return normalizeStoredCode(`${yText.toString()}${hiddenMain}`);
   };
 
-  const persistSubmittedCodeForRun = (roomId, code) => {
+  const persistSubmittedCodeForRun = async (roomId, code) => {
     const room = rooms[roomId]?.state;
 
     if (!room || room.codeRunPending) {
       return;
     }
 
-    persistRoomCodeFromYDoc(roomId, code);
+    await persistRoomCodeFromYDoc(roomId, code);
 
     if (typeof code === "string") {
       replaceYDocTextFromRoom(roomId);

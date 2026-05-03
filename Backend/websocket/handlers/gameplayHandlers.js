@@ -16,8 +16,8 @@ const createGameplayHandlers = ({
 }) => {
   const runCodeHandler = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    persistSubmittedCodeForRun(roomId, data.code);
-    runCode(roomId, ws.userId);
+    await persistSubmittedCodeForRun(roomId, data.code);
+    await runCode(roomId, ws.userId);
     broadcastRoomState(roomId);
     sendAck(ws, data.requestId);
     void runServerCodeReview(roomId);
@@ -25,15 +25,15 @@ const createGameplayHandlers = ({
 
   const executeCodeAndResolveHandler = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    persistSubmittedCodeForRun(roomId, data.code);
+    await persistSubmittedCodeForRun(roomId, data.code);
     void runServerCodeReview(roomId);
     sendAck(ws, data.requestId);
   };
 
   const startEmergencyMeetingHandler = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    persistSubmittedCodeForRun(roomId, data.code);
-    startEmergencyMeeting(roomId, ws.userId, data.reason);
+    await persistSubmittedCodeForRun(roomId, data.code);
+    await startEmergencyMeeting(roomId, ws.userId, data.reason);
     broadcastRoomState(roomId);
     sendAck(ws, data.requestId);
     void runServerCodeReview(roomId);
@@ -41,15 +41,15 @@ const createGameplayHandlers = ({
 
   const voteInMeetingHandler = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    voteInMeeting(roomId, ws.userId, data.targetId);
+    await voteInMeeting(roomId, ws.userId, data.targetId);
     broadcastRoomState(roomId);
     sendAck(ws, data.requestId);
   };
 
   const finalizeMeetingHandler = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    persistRoomCodeFromYDoc(roomId);
-    finalizeMeeting(roomId, ws.userId);
+    await persistRoomCodeFromYDoc(roomId);
+    await finalizeMeeting(roomId, ws.userId);
     broadcastRoomState(roomId);
     broadcastYDocState(roomId);
     sendAck(ws, data.requestId);

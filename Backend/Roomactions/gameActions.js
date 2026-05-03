@@ -1,7 +1,8 @@
 const crypto = require("crypto");
 const { rooms } = require("../roomsStore");
-const { buildLobbyResetPayload } = require("./payload");
 const redis = require("../client");
+const { buildLobbyResetPayload } = require("./payload");
+const { getRoomState, syncRoomStateToRedis } = require("./roomStateStore");
 const {
   compareOutputs,
   ensureAlivePlayer,
@@ -18,21 +19,10 @@ const {
   sanitizeRoleTaskConfig,
   shouldImposterWinByParity,
 } = require("./utils");
-const { log } = require("console");
 
 const TOTAL_GAME_ROUNDS = 3;
 const SUPPORTED_CODE_LANGUAGES = new Set(["cpp", "javascript", "python"]);
 const INTERNAL_BACKEND_URL = process.env.INTERNAL_BACKEND_URL;
-
-const getRoomState = (roomId) => {
-  const roomObj = rooms[roomId];
-
-  if (!roomObj) {
-    throw new Error("Room not found.");
-  }
-
-  return roomObj.state;
-};
 
 const buildTaskState = (snippet) => {
   const playerTask = sanitizeRoleTaskConfig(
@@ -67,7 +57,6 @@ const runSubmittedCode = async ({ code, language }) => {
   console.log(
     `[CODE_REVIEW] Running ${language} code (${Buffer.byteLength(code, "utf8")} bytes)`,
   );
-  //  throw new Error("test error")
 
   const response = await fetch(`${backendUrl}/run-code`, {
     method: "POST",
@@ -131,20 +120,7 @@ const startVoting = async (roomId, userId) => {
   room.votes = {};
   room.winner = null;
 
-  const pipeline = redis.pipeline();
-
-  pipeline.hset(`room:${roomId}`, {
-    gameState: room.gameState,
-    votingStartedAt: room.votingStartedAt,
-    currentRound: room.currentRound,
-    successfulRounds: room.successfulRounds,
-    codeRunPending: room.codeRunPending,
-  });
-
-  pipeline.del(`room:${roomId}:votes`);
-
-  await pipeline.exec();
-
+  await syncRoomStateToRedis(roomId, room);
   return room;
 };
 
@@ -211,34 +187,7 @@ const finalizeVotingRound = async (roomId, userId, snippet) => {
     templateCode,
   };
 
-  const pipeline = redis.pipeline();
-
-  pipeline.hset(`room:${roomId}`, {
-    gameState: room.gameState,
-    roundStartedAt: room.roundStartedAt,
-    imposterId: room.imposterId,
-    winner: room.winner,
-    votingdone: room.votingdone,
-    currentRound: room.currentRound,
-  });
-
-  pipeline.del(`room:${roomId}:votes`);
-
-  playerIds.forEach((playerId) => {
-    const p = room.players[playerId];
-
-    pipeline.hset(`room:${roomId}:player:${playerId}`, {
-      role: p.role,
-      color: p.color,
-      alive: p.alive,
-      status: p.status,
-    });
-  });
-
-  pipeline.set(`room:${roomId}:code`, JSON.stringify(room.codestate));
-
-  await pipeline.exec();
-
+  await syncRoomStateToRedis(roomId, room);
   return room;
 };
 
@@ -265,14 +214,10 @@ const runCode = async (
   room.codeRunRequestedAt = Date.now();
   room.codeRunReason = reason;
 
-  await redis.hset(`room:${roomId}`, {
-    codeRunPending: true,
-    codeRunRequestedAt: room.codeRunRequestedAt,
-    codeRunReason: room.codeRunReason,
-  });
-
+  await syncRoomStateToRedis(roomId, room);
   return room;
 };
+
 const resolveCodeRun = async (roomId, userId, snippet, submittedOutput) => {
   const room = await getRoomState(roomId);
 
@@ -305,14 +250,6 @@ const resolveCodeRun = async (roomId, userId, snippet, submittedOutput) => {
   room.meetingVotes = {};
   room.meetingReason = null;
 
-  const pipeline = redis.pipeline();
-
-  pipeline.hset(`room:${roomId}`, {
-    codeRunPending: false,
-    codeRunRequestedAt: "",
-    codeRunReason: "",
-  });
-
   if (matchesPlayerOutput) {
     room.gameState = "crew_win";
     room.winningTeam = "crew";
@@ -322,16 +259,7 @@ const resolveCodeRun = async (roomId, userId, snippet, submittedOutput) => {
     room.successfulRounds = (room.successfulRounds || 0) + 1;
     room.roundStartedAt = null;
 
-    pipeline.hset(`room:${roomId}`, {
-      gameState: room.gameState,
-      winningTeam: room.winningTeam,
-      resultMessage: room.resultMessage,
-      gameEndedAt: room.gameEndedAt,
-      successfulRounds: room.successfulRounds,
-      roundStartedAt: "",
-    });
-
-    await pipeline.exec();
+    await syncRoomStateToRedis(roomId, room);
     return room;
   }
 
@@ -343,15 +271,7 @@ const resolveCodeRun = async (roomId, userId, snippet, submittedOutput) => {
     room.gameEndedAt = Date.now();
     room.roundStartedAt = null;
 
-    pipeline.hset(`room:${roomId}`, {
-      gameState: room.gameState,
-      winningTeam: room.winningTeam,
-      resultMessage: room.resultMessage,
-      gameEndedAt: room.gameEndedAt,
-      roundStartedAt: "",
-    });
-
-    await pipeline.exec();
+    await syncRoomStateToRedis(roomId, room);
     return room;
   }
 
@@ -361,15 +281,7 @@ const resolveCodeRun = async (roomId, userId, snippet, submittedOutput) => {
   room.meetingVotes = {};
   room.meetingReason = "The output did not match any expected result.";
 
-  pipeline.hset(`room:${roomId}`, {
-    gameState: room.gameState,
-    meetingStartedAt: room.meetingStartedAt,
-    meetingReason: room.meetingReason,
-    resultMessage: "",
-  });
-
-  await pipeline.exec();
-
+  await syncRoomStateToRedis(roomId, room);
   return room;
 };
 
@@ -407,7 +319,6 @@ const executeCodeAndResolve = async (roomId, userId, snippet) => {
 
   try {
     const output = await runSubmittedCode({ code, language });
-
     return await resolveCodeRun(roomId, userId, snippet, output);
   } catch (error) {
     console.error("[CODE_REVIEW] Execution failed:", error.message);
@@ -421,20 +332,7 @@ const executeCodeAndResolve = async (roomId, userId, snippet) => {
     room.meetingVotes = {};
     room.meetingReason = `There was a compilation error while running the code: ${error.message}`;
 
-    const pipeline = redis.pipeline();
-
-    pipeline.hset(`room:${roomId}`, {
-      gameState: room.gameState,
-      codeRunPending: false,
-      codeRunRequestedAt: "",
-      codeRunReason: "",
-      meetingStartedAt: room.meetingStartedAt,
-      meetingReason: room.meetingReason,
-      resultMessage: "",
-    });
-
-    await pipeline.exec();
-
+    await syncRoomStateToRedis(roomId, room);
     return room;
   }
 };
@@ -470,7 +368,6 @@ const voteInMeeting = async (roomId, userId, targetId) => {
   room.meetingVotes[userId] = normalizedTarget;
 
   await redis.hset(`room:${roomId}:meetingVotes`, userId, normalizedTarget);
-
   return room;
 };
 
@@ -510,7 +407,6 @@ const finalizeMeeting = async (roomId, userId) => {
     eliminatedPlayerId = topTargets[0];
   }
 
-  // 🟢 memory update
   if (eliminatedPlayerId && alivePlayerIds.includes(eliminatedPlayerId)) {
     room.players[eliminatedPlayerId] = {
       ...room.players[eliminatedPlayerId],
@@ -527,21 +423,6 @@ const finalizeMeeting = async (roomId, userId) => {
   room.meetingStartedAt = null;
   room.meetingReason = null;
 
-  const pipeline = redis.pipeline();
-
-  // ❗ update eliminated player
-  if (eliminatedPlayerId) {
-    pipeline.hset(`room:${roomId}:player:${eliminatedPlayerId}`, {
-      alive: false,
-      status: "dead",
-    });
-  }
-
-  // ❗ clear meeting votes (important)
-  pipeline.del(`room:${roomId}:meetingVotes`);
-
-  // --- WIN CONDITIONS ---
-
   if (eliminatedPlayerId && eliminatedPlayerId === room.imposterId) {
     room.gameState = "crew_win";
     room.winningTeam = "crew";
@@ -549,16 +430,7 @@ const finalizeMeeting = async (roomId, userId) => {
     room.gameEndedAt = Date.now();
     room.roundStartedAt = null;
 
-    pipeline.hset(`room:${roomId}`, {
-      gameState: room.gameState,
-      winningTeam: room.winningTeam,
-      resultMessage: room.resultMessage,
-      gameEndedAt: room.gameEndedAt,
-      roundStartedAt: "",
-      lastEliminatedId: eliminatedPlayerId,
-    });
-
-    await pipeline.exec();
+    await syncRoomStateToRedis(roomId, room);
     return room;
   }
 
@@ -569,15 +441,7 @@ const finalizeMeeting = async (roomId, userId) => {
     room.gameEndedAt = Date.now();
     room.roundStartedAt = null;
 
-    pipeline.hset(`room:${roomId}`, {
-      gameState: room.gameState,
-      winningTeam: room.winningTeam,
-      resultMessage: room.resultMessage,
-      gameEndedAt: room.gameEndedAt,
-      roundStartedAt: "",
-    });
-
-    await pipeline.exec();
+    await syncRoomStateToRedis(roomId, room);
     return room;
   }
 
@@ -589,33 +453,17 @@ const finalizeMeeting = async (roomId, userId) => {
     room.gameEndedAt = Date.now();
     room.roundStartedAt = null;
 
-    pipeline.hset(`room:${roomId}`, {
-      gameState: room.gameState,
-      resultMessage: room.resultMessage,
-      gameEndedAt: room.gameEndedAt,
-      roundStartedAt: "",
-    });
-
-    await pipeline.exec();
+    await syncRoomStateToRedis(roomId, room);
     return room;
   }
 
-  // 🟢 continue game
   room.gameState = "playing";
   room.winningTeam = null;
   room.resultMessage = null;
   room.roundStartedAt = Date.now();
   room.currentRound = nextRound;
 
-  pipeline.hset(`room:${roomId}`, {
-    gameState: room.gameState,
-    currentRound: room.currentRound,
-    roundStartedAt: room.roundStartedAt,
-    lastEliminatedId: eliminatedPlayerId,
-  });
-
-  await pipeline.exec();
-
+  await syncRoomStateToRedis(roomId, room);
   return room;
 };
 
@@ -627,48 +475,12 @@ const resetRoom = async (roomId, userId) => {
   }
 
   const resetState = buildLobbyResetPayload(room);
-
   rooms[roomId].state = resetState;
 
-  const pipeline = redis.pipeline();
-
-  pipeline.hset(`room:${roomId}`, {
-    gameState: resetState.gameState,
-    winner: "",
-    winningTeam: "",
-    resultMessage: "",
-    currentRound: 0,
-    successfulRounds: 0,
-    codeRunPending: false,
-    votingdone: false,
-    imposterId: "",
-    gameEndedAt: "",
-    resetAt: resetState.resetAt,
-  });
-
-  pipeline.del(`room:${roomId}:votes`);
-  pipeline.del(`room:${roomId}:meetingVotes`);
-
-  pipeline.del(`room:${roomId}:chat`);
-
-  pipeline.del(`room:${roomId}:code`);
-
-  const playerIds = Object.keys(resetState.players || {});
-  playerIds.forEach((playerId) => {
-    const p = resetState.players[playerId];
-
-    pipeline.hset(`room:${roomId}:player:${playerId}`, {
-      status: p.status,
-      alive: p.alive,
-      role: p.role,
-      color: p.color || "",
-    });
-  });
-
-  await pipeline.exec();
-
+  await syncRoomStateToRedis(roomId, resetState);
   return resetState;
 };
+
 module.exports = {
   executeCodeAndResolve,
   finalizeMeeting,

@@ -6,6 +6,17 @@ const defaultTopics = {
   "dsa(Py)": { label: "DSA (Py)" },
 };
 
+const buildDefaultTopics = () => JSON.parse(JSON.stringify(defaultTopics));
+
+const buildEmptyCodeState = () => ({
+  language: null,
+  code: null,
+  updatedAt: null,
+  lockedRanges: [],
+  playersCursor: {},
+  tasks: {},
+});
+
 const buildInitialRoomData = (userId, hostName) => {
   return {
     createdAt: Date.now(),
@@ -28,7 +39,7 @@ const buildInitialRoomData = (userId, hostName) => {
     meetingVotes: {},
     meetingReason: null,
     lastEliminatedId: null,
-    topics: defaultTopics,
+    topics: buildDefaultTopics(),
     votingdone: false,
     votes: {},
     players: {
@@ -42,14 +53,7 @@ const buildInitialRoomData = (userId, hostName) => {
       },
     },
     chat: {},
-    codestate: {
-      language: null,
-      code: null,
-      updatedAt: null,
-      lockedRanges: [],
-      playersCursor: {},
-      tasks: {},
-    },
+    codestate: buildEmptyCodeState(),
   };
 };
 
@@ -79,18 +83,13 @@ const buildLobbyResetPayload = (room) => {
     emptySince: null,
     players: buildResetPlayers(room.players || {}),
     chat: {},
-    codestate: {
-      language: null,
-      code: null,
-      updatedAt: null,
-      lockedRanges: [],
-      playersCursor: {},
-      tasks: {},
-    },
+    codestate: buildEmptyCodeState(),
   };
 };
 
 module.exports = {
+  buildDefaultTopics,
+  buildEmptyCodeState,
   buildInitialRoomData,
   buildLobbyResetPayload,
 };

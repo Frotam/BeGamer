@@ -1,23 +1,18 @@
 const crypto = require("crypto");
-const { rooms } = require("../roomsStore");
+const redis = require("../client");
+const {
+  getRoomState,
+  persistPlayerState,
+  persistRoomMetadata,
+} = require("./roomStateStore");
 const {
   ensureAlivePlayer,
   ensureRoomPlayer,
   normalizeStoredCode,
 } = require("./utils");
-const redis = require("../client");
-const getRoomState = (roomId) => {
-  const roomObj = rooms[roomId];
 
-  if (!roomObj) {
-    throw new Error("Room not found.");
-  }
-
-  return roomObj.state;
-};
-
-const voteForTopic = (roomId, userId, topicId) => {
-  const room = getRoomState(roomId);
+const voteForTopic = async (roomId, userId, topicId) => {
+  const room = await getRoomState(roomId);
 
   ensureRoomPlayer(room, userId);
 
@@ -28,13 +23,14 @@ const voteForTopic = (roomId, userId, topicId) => {
   if (!room.topics?.[topicId]) {
     throw new Error("Invalid topic selected.");
   }
+
   room.votes[userId] = topicId;
-  await redis.hset(`room:${roomId}:votes`,userId,topicId)
+  await redis.hset(`room:${roomId}:votes`, userId, topicId);
   return room;
 };
 
-const updatecode = (roomId, code, userId) => {
-  const room = getRoomState(roomId);
+const updatecode = async (roomId, code, userId) => {
+  const room = await getRoomState(roomId);
 
   ensureAlivePlayer(room, userId);
 
@@ -50,11 +46,13 @@ const updatecode = (roomId, code, userId) => {
 
   room.codestate.code = normalizeStoredCode(code);
   room.codestate.updatedAt = Date.now();
+
+  await persistRoomMetadata(roomId, room);
   return room;
 };
 
-const updatecursor = (roomId, userId, cursor = {}) => {
-  const room = getRoomState(roomId);
+const updatecursor = async (roomId, userId, cursor = {}) => {
+  const room = await getRoomState(roomId);
 
   ensureAlivePlayer(room, userId);
 
@@ -75,8 +73,8 @@ const updatecursor = (roomId, userId, cursor = {}) => {
   return room;
 };
 
-const sendmessage = (roomId, userId, message) => {
-  const room = getRoomState(roomId);
+const sendmessage = async (roomId, userId, message) => {
+  const room = await getRoomState(roomId);
   const trimmedMessage = String(message || "").trim();
 
   if (!trimmedMessage) {
@@ -100,11 +98,12 @@ const sendmessage = (roomId, userId, message) => {
     createdAt: Date.now(),
   };
 
+  await persistRoomMetadata(roomId, room);
   return room;
 };
 
 const joinRoom = async (roomId, userId, playerName) => {
-  const room = getRoomState(roomId);
+  const room = await getRoomState(roomId);
   const trimmedName = String(playerName || "").trim();
 
   if (!trimmedName) {
@@ -120,11 +119,9 @@ const joinRoom = async (roomId, userId, playerName) => {
       connectedAt: Date.now(),
     };
 
-    console.log("owner hitt");
-    const updatedPlayer = room.players[userId];
-    await redis.hset(`room:${roomId}:player:${userId}`, {
-      name: updatedPlayer.name,
-      connectedAt: updatedPlayer.connectedAt,
+    await persistPlayerState(roomId, userId, room.players[userId], {
+      setMembership: true,
+      setUserMapping: true,
     });
 
     return room;
@@ -143,29 +140,20 @@ const joinRoom = async (roomId, userId, playerName) => {
     color: existingPlayer?.color,
     connectedAt: Date.now(),
   };
-  console.log("player hitt");
-  const updatedPlayer = room.players[userId];
 
-  await redis.hset(`room:${roomId}:player:${userId}`, {
-    uid: updatedPlayer.uid,
-    name: updatedPlayer.name,
-    status: updatedPlayer.status,
-    alive: updatedPlayer.alive,
-    role: updatedPlayer.role,
-    connectedAt: updatedPlayer.connectedAt,
+  await persistPlayerState(roomId, userId, room.players[userId], {
+    setMembership: true,
+    setUserMapping: true,
   });
-
-  // user → room mapping
-  await redis.set(`user:${userId}`, roomId);
 
   return room;
 };
 
 module.exports = {
+  getRoomState,
   joinRoom,
   sendmessage,
   updatecode,
   updatecursor,
-  getRoomState,
   voteForTopic,
 };
