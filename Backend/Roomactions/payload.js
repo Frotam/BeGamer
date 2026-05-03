@@ -50,6 +50,8 @@ const buildInitialRoomData = (userId, hostName) => {
         alive: true,
         role: "Player",
         connectedAt: Date.now(),
+        connected: true,
+        disconnectedAt: null,
       },
     },
     chat: {},

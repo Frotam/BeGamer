@@ -2,12 +2,21 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 const SocketContext = createContext(null);
 const RECONNECT_DELAY_MS = 1500;
+const SOCKET_USER_ID_STORAGE_KEY = "socketUserId";
 
 const resolveSocketUrl = () => {
   const configuredUrl = import.meta.env.VITE_WS_URL;
+  const savedSocketUserId =
+    typeof window !== "undefined"
+      ? String(localStorage.getItem(SOCKET_USER_ID_STORAGE_KEY) || "").trim()
+      : "";
 
   if (configuredUrl) {
-    return configuredUrl;
+    const url = new URL(configuredUrl);
+    if (savedSocketUserId) {
+      url.searchParams.set("sessionUserId", savedSocketUserId);
+    }
+    return url.toString();
   }
 
   if (typeof window === "undefined") {
@@ -18,11 +27,16 @@ const resolveSocketUrl = () => {
   const host = window.location.hostname;
   const isLocalHost = host === "localhost" || host === "127.0.0.1";
 
-  if (isLocalHost) {
-    return `${protocol}://${host}:5001`;
+  const baseUrl = isLocalHost
+    ? `${protocol}://${host}:5001`
+    : `${protocol}://${window.location.host}`;
+  const url = new URL(baseUrl);
+
+  if (savedSocketUserId) {
+    url.searchParams.set("sessionUserId", savedSocketUserId);
   }
 
-  return `${protocol}://${window.location.host}`;
+  return url.toString();
 };
 
 export const useSocket = () => useContext(SocketContext);
@@ -110,6 +124,7 @@ export const SocketProvider = ({ children }) => {
           setSocketUserId(nextUserId);
           if (nextUserId) {
             window.__socketUserId = nextUserId;
+            localStorage.setItem(SOCKET_USER_ID_STORAGE_KEY, nextUserId);
             window.dispatchEvent(new Event("socket-user-changed"));
           }
         }

@@ -32,6 +32,11 @@ const createRoomExitHandlers = ({
     const hasActiveConnection = countUserSockets(roomObj, userId) > 0;
 
     if (!hasActiveConnection) {
+      if (roomObj.pendingDisconnects?.[userId]?.timer) {
+        clearTimeout(roomObj.pendingDisconnects[userId].timer);
+        delete roomObj.pendingDisconnects[userId];
+      }
+
       const removedWasAlive = roomObj.state?.players?.[userId]?.alive !== false;
       await removePlayer(roomObj, roomId, userId);
       resolveGameOnLeaveIfNeeded(roomObj, userId, removedWasAlive);

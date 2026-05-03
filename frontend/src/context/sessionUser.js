@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 let runtimeUserId = null;
+const SOCKET_USER_ID_STORAGE_KEY = "socketUserId";
 
 export const readSessionUser = () => {
   if (typeof window === "undefined") {
@@ -9,6 +10,13 @@ export const readSessionUser = () => {
 
   if (!runtimeUserId && typeof window.__socketUserId === "string") {
     runtimeUserId = window.__socketUserId.trim() || null;
+  }
+
+  if (!runtimeUserId) {
+    const persistedUserId = String(
+      localStorage.getItem(SOCKET_USER_ID_STORAGE_KEY) || "",
+    ).trim();
+    runtimeUserId = persistedUserId || null;
   }
 
   const name = localStorage.getItem("username") || "";
@@ -30,6 +38,7 @@ export const syncSessionUser = (user) => {
 
   if (typeof user?.uid === "string" && user.uid.trim()) {
     runtimeUserId = user.uid.trim();
+    localStorage.setItem(SOCKET_USER_ID_STORAGE_KEY, runtimeUserId);
   }
 
   if (typeof user.name === "string") {

@@ -117,6 +117,8 @@ const joinRoom = async (roomId, userId, playerName) => {
       ...existingPlayer,
       name: trimmedName || existingPlayer.name,
       connectedAt: Date.now(),
+      connected: true,
+      disconnectedAt: null,
     };
 
     await persistPlayerState(roomId, userId, room.players[userId], {
@@ -139,6 +141,8 @@ const joinRoom = async (roomId, userId, playerName) => {
     role: existingPlayer?.role || "Player",
     color: existingPlayer?.color,
     connectedAt: Date.now(),
+    connected: true,
+    disconnectedAt: null,
   };
 
   await persistPlayerState(roomId, userId, room.players[userId], {

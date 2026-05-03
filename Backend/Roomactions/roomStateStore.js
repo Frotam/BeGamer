@@ -152,6 +152,8 @@ const serializePlayer = (player = {}, userId) => {
     role: serializeScalar(player.role),
     color: serializeScalar(player.color),
     connectedAt: serializeScalar(player.connectedAt),
+    connected: serializeScalar(player.connected !== false),
+    disconnectedAt: serializeScalar(player.disconnectedAt),
   };
 };
 
@@ -168,6 +170,8 @@ const deserializePlayer = (playerHash = {}, userId) => {
     role: playerHash.role || "Player",
     color: deserializeNullableString(playerHash.color),
     connectedAt: deserializeNullableNumber(playerHash.connectedAt),
+    connected: deserializeBoolean(playerHash.connected, true),
+    disconnectedAt: deserializeNullableNumber(playerHash.disconnectedAt),
   };
 };
 

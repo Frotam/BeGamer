@@ -216,6 +216,8 @@ const buildResetPlayers = (players = {}) => {
         alive: true,
         status: "alive",
         role: "Player",
+        connected: player?.connected !== false,
+        disconnectedAt: null,
       },
     ])
   );
