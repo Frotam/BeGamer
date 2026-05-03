@@ -1,7 +1,9 @@
 const { rooms } = require("../../roomsStore");
 const { buildInitialRoomData } = require("../../Roomactions/payload");
 const { joinRoom } = require("../../Roomactions/Basicactions");
+const redis = require("../../client");
 
+// const pipline = redis.pipline();
 const createRoomEntryHandlers = ({
   send,
   sendAck,
@@ -21,9 +23,31 @@ const createRoomEntryHandlers = ({
 
     const roomId = Math.random().toString(36).slice(2, 8);
     const state = buildInitialRoomData(userId, username);
-
     rooms[roomId] = { sockets: [], state };
+    const player = state.players[userId];
 
+    const pipeline = redis.pipeline();
+
+    pipeline.hset(`room:${roomId}`, {
+      createdAt: state.createdAt,
+      hostId: userId,
+      gameState: state.gameState,
+      currentRound: state.currentRound,
+      successfulRounds: state.successfulRounds,
+      codeRunPending: state.codeRunPending,
+    });
+    pipeline.hset(`room:${roomId}:player:${userId}`, {
+      uid: player.uid,
+      name: player.name,
+      status: player.status,
+      alive: player.alive,
+      role: player.role,
+      connectedAt: player.connectedAt,
+    });
+
+    pipeline.sadd("activeRooms", roomId);
+    pipeline.set(`user:${userId}`, roomId);
+    await pipeline.exec();
     ws.username = username;
     ws.userId = userId;
     ws.user.uid = userId;

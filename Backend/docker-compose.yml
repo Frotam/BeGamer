@@ -22,7 +22,7 @@ services:
     env_file:
       - .env
 
-  redis:
+  redis:   
     image: redis
     ports:
       - "5002:6379"

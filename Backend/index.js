@@ -20,20 +20,30 @@ app.use(
 );
 
 const PORT = Number(process.env.PORT) || 5001;
-
-// ✅ correct Redis config (Render)
+ 
 const connection = {
   url: process.env.REDIS_URL,
+  maxRetriesPerRequest:null,
+  retryStrategy:(times)=>{
+    return Math.min(times*100,2000);
+  },
 };
 
-// ✅ create queue ONCE
+ 
 const queue = new Queue("code-runner", { connection });
 const queueEvents = new QueueEvents("code-runner", { connection });
 
 app.post("/run-code", async (req, res) => {
   const { code, language } = req.body;
 
-  const job = await queue.add("run-code", { code, language });
+  const job = await queue.add("run-code", { code, language },{
+    attempts:3,
+    // ad a job id for unique job 
+    backoff:{
+      type:"exponential",
+      delay:1000
+    }
+  });
 
   try {
     const result = await job.waitUntilFinished(queueEvents, 20000);

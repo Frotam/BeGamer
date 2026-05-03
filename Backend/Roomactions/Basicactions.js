@@ -1,7 +1,11 @@
 const crypto = require("crypto");
 const { rooms } = require("../roomsStore");
-const { ensureAlivePlayer, ensureRoomPlayer, normalizeStoredCode } = require("./utils");
-
+const {
+  ensureAlivePlayer,
+  ensureRoomPlayer,
+  normalizeStoredCode,
+} = require("./utils");
+const redis = require("../client");
 const getRoomState = (roomId) => {
   const roomObj = rooms[roomId];
 
@@ -24,8 +28,8 @@ const voteForTopic = (roomId, userId, topicId) => {
   if (!room.topics?.[topicId]) {
     throw new Error("Invalid topic selected.");
   }
-
   room.votes[userId] = topicId;
+  await redis.hset(`room:${roomId}:votes`,userId,topicId)
   return room;
 };
 
@@ -39,7 +43,9 @@ const updatecode = (roomId, code, userId) => {
   }
 
   if (room.codeRunPending) {
-    throw new Error("Code editing is paused while the code result is being reviewed.");
+    throw new Error(
+      "Code editing is paused while the code result is being reviewed.",
+    );
   }
 
   room.codestate.code = normalizeStoredCode(code);
@@ -80,7 +86,9 @@ const sendmessage = (roomId, userId, message) => {
   const player = ensureAlivePlayer(room, userId);
 
   if (room.codeRunPending && room.gameState === "playing") {
-    throw new Error("Chat is disabled while the code result is being reviewed.");
+    throw new Error(
+      "Chat is disabled while the code result is being reviewed.",
+    );
   }
 
   const messageId = crypto.randomUUID();
@@ -95,7 +103,7 @@ const sendmessage = (roomId, userId, message) => {
   return room;
 };
 
-const joinRoom = (roomId, userId, playerName) => {
+const joinRoom = async (roomId, userId, playerName) => {
   const room = getRoomState(roomId);
   const trimmedName = String(playerName || "").trim();
 
@@ -104,15 +112,26 @@ const joinRoom = (roomId, userId, playerName) => {
   }
 
   const existingPlayer = room.players?.[userId] || null;
+
   if (existingPlayer) {
     room.players[userId] = {
       ...existingPlayer,
       name: trimmedName || existingPlayer.name,
       connectedAt: Date.now(),
     };
+
+    console.log("owner hitt");
+    const updatedPlayer = room.players[userId];
+    await redis.hset(`room:${roomId}:player:${userId}`, {
+      name: updatedPlayer.name,
+      connectedAt: updatedPlayer.connectedAt,
+    });
+
     return room;
   }
-  const isLiveGame = room.gameState === "playing" || room.gameState === "meeting";
+
+  const isLiveGame =
+    room.gameState === "playing" || room.gameState === "meeting";
   const isSpectator = isLiveGame;
 
   room.players[userId] = {
@@ -124,6 +143,20 @@ const joinRoom = (roomId, userId, playerName) => {
     color: existingPlayer?.color,
     connectedAt: Date.now(),
   };
+  console.log("player hitt");
+  const updatedPlayer = room.players[userId];
+
+  await redis.hset(`room:${roomId}:player:${userId}`, {
+    uid: updatedPlayer.uid,
+    name: updatedPlayer.name,
+    status: updatedPlayer.status,
+    alive: updatedPlayer.alive,
+    role: updatedPlayer.role,
+    connectedAt: updatedPlayer.connectedAt,
+  });
+
+  // user → room mapping
+  await redis.set(`user:${userId}`, roomId);
 
   return room;
 };

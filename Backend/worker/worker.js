@@ -1,51 +1,18 @@
-const express = require("express");
-const { Worker } = require("bullmq");
 require("dotenv").config();
 
+const express = require("express");
+const { Worker } = require("bullmq");
+const Redis = require("ioredis");
+
 const PORT = Number(process.env.WORKERPORT) || 3000;
-const connection = { url: process.env.REDIS_URL };
 
-const parseRunnerList = (value) =>
-  (value || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const RUNNERS = {
-  cpp: parseRunnerList(process.env.CPP_RUNNERS),
-  javascript: parseRunnerList(process.env.JS_RUNNERS),
-  js: parseRunnerList(process.env.JS_RUNNERS),
-  python: parseRunnerList(process.env.PY_RUNNERS),
-  py: parseRunnerList(process.env.PY_RUNNERS),
+const connection = {
+  url: process.env.REDIS_URL,
+  maxRetriesPerRequest: null,
+  retryStrategy: (times) => Math.min(times * 100, 2000),
 };
 
-function getRunner(language) {
-  const key = String(language || "").toLowerCase();
-  const list = RUNNERS[key];
-
-  if (!list || list.length === 0) {
-    throw new Error(`No runners configured for language: ${language}`);
-  }
-
-  const index = Math.floor(Math.random() * list.length);
-  return list[index];
-}
-
-async function runOnRunner(language, code) {
-  const runner = getRunner(language);
-  const response = await fetch(`${runner}/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Runner request failed (${response.status}): ${text}`);
-  }
-
-  return response.json();
-}
+const healthClient = new Redis(process.env.REDIS_URL);
 
 const worker = new Worker(
   "code-runner",
@@ -57,23 +24,22 @@ const worker = new Worker(
   { connection }
 );
 
-worker.on("completed", (job) => {
-  console.log(`[worker] Job completed: ${job.id}`);
-});
 
-worker.on("failed", (job, err) => {
-  console.error(`[worker] Job failed: ${job?.id}`, err);
-});
+let isRedisUp = true;
 
-worker.on("error", (err) => {
-  console.error("[worker] Worker error:", err);
-});
+setInterval(async () => {
+  try {
+    await healthClient.ping();
 
-const app = express();
-app.get("/", (_req, res) => {
-  res.send("Worker running");
-});
+    if (!isRedisUp) {
+      console.log("[health] Redis RECOVERED");
+      isRedisUp = true;
+    }
 
-app.listen(PORT, () => {
-  console.log(`[worker] Health server listening on port ${PORT}`);
-});
+  } catch (error) {
+    if (isRedisUp) {
+      console.error("[health] Redis DOWN:", error.message);
+      isRedisUp = false;
+    }
+  }
+}, 5000);
