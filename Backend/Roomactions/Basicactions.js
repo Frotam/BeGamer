@@ -139,7 +139,7 @@ const joinRoom = async (roomId, userId, playerName) => {
     status: isSpectator ? "spectating" : "alive",
     alive: !isSpectator,
     role: existingPlayer?.role || "Player",
-    color: existingPlayer?.color,
+    color: undefined,
     connectedAt: Date.now(),
     connected: true,
     disconnectedAt: null,

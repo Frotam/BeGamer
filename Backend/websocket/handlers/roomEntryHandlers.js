@@ -1,11 +1,8 @@
 const { rooms } = require("../../roomsStore");
 const { buildInitialRoomData } = require("../../Roomactions/payload");
 const { joinRoom } = require("../../Roomactions/Basicactions");
-const {
-  getRoomState,
-  recordRoomCreated,
-  syncRoomStateToRedis,
-} = require("../../Roomactions/roomStateStore");
+const { getRoomState } = require("../../Roomactions/roomStateStore");
+const eventBus = require("../../events/event");
 
 const createRoomEntryHandlers = ({
   send,
@@ -26,15 +23,21 @@ const createRoomEntryHandlers = ({
 
     const roomId = Math.random().toString(36).slice(2, 8);
     const state = buildInitialRoomData(userId, username);
+
     rooms[roomId] = { sockets: [], state };
-    await syncRoomStateToRedis(roomId, state, { updateUserMappings: true });
-    await recordRoomCreated();
     ws.username = username;
     ws.userId = userId;
     ws.user.uid = userId;
 
     attachSocketToRoom(roomId, ws);
     await joinRoom(roomId, userId, username);
+
+    eventBus.emit("Room_created", {
+      roomId,
+      userId,
+      username,
+      state,
+    });
 
     send(ws, { type: "roomCreated", roomId, state });
     sendAck(ws, data.requestId, { roomId });

@@ -5,6 +5,8 @@ const rateLimit = require("express-rate-limit");
 const registerRoom = require("./websocket");
 const { Queue, QueueEvents } = require("bullmq");
 require("dotenv").config();
+require("./events/Redishandler");
+require("./events/Roomutils");
 
 const app = express();
 
