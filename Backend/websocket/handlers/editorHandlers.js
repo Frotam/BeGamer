@@ -16,9 +16,10 @@ const createEditorHandlers = ({
     const doc = getYDoc(roomId);
     const update = Uint8Array.from(data.update);
 
-    await updatecode(roomId, roomObj.state.codestate?.code || "", ws.userId);
+    // await updatecode(roomId, roomObj.state.codestate?.code || "", ws.userId);
     Y.applyUpdate(doc, update);
-    await updatecode(roomId, getFullCodeFromYDoc(roomId), ws.userId);
+    const fullcode = getFullCodeFromYDoc(roomId);
+    await updatecode(roomId, fullcode, ws.userId);
 
     roomObj.sockets.forEach((client) => {
       if (client !== ws && client.readyState === 1) {
@@ -32,14 +33,36 @@ const createEditorHandlers = ({
       }
     });
   };
+  const persistTimers = {};
 
+  function schedulePersist(roomId, doc, userId) {
+    clearTimeout(persistTimers[roomId]);
+
+    persistTimers[roomId] = setTimeout(async () => {
+      const fullCode = getFullCodeFromYDoc(roomId);
+      await updatecode(roomId, fullCode, userId);
+    }, 500); // tweak (300–1000ms)
+  }
   const updateCode = async (ws, data) => {
     const { roomId } = assertRoomAccess(ws, data.roomId);
-    await updatecode(roomId, data.code, ws.userId);
-    replaceYDocTextFromRoom(roomId);
 
-    broadcastRoomState(roomId);
-    broadcastYDocState(roomId);
+    const doc = getYDoc(roomId);
+    const yText = doc.getText("monaco");
+
+  
+    doc.transact(() => {
+      yText.delete(0, yText.length);
+      if (data.code) {
+        yText.insert(0, data.code);
+      }
+    });
+
+
+    schedulePersist(roomId, doc, ws.userId);
+
+    
+    broadcastYDocState(roomId); 
+
     sendAck(ws, data.requestId);
   };
 

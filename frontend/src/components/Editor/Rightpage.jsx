@@ -174,131 +174,135 @@ function Rightpage({ data, getLiveFullCode }) {
           </div>
         )}
 
-        <div 
-  className="chat-panel d-flex flex-column rounded"
-  style={{
-    width: "260px",
-    height: "320px",
-    overflow: "hidden",
-    background: "#0f172a",
-    border: "2px solid #22c55e",
-    boxShadow: "4px 4px 0px #22c55e",
-    fontFamily: "monospace",
-    color: "#e5e7eb"
-  }}
->
-  {/* HEADER */}
-  <div
-    className="chat-panel-header p-2"
-    style={{
-      borderBottom: "2px solid #22c55e",
-      background: "#020617"
-    }}
-  >
-    <p
-      className="mb-0"
-      style={{
-        fontSize: "11px",
-        color: "#22c55e",
-        letterSpacing: "1px"
-      }}
-    >
-      TEAM CHAT
-    </p>
-
-    <h6
-      className="mb-0"
-      style={{
-        color: "#38bdf8",
-        fontWeight: "bold"
-      }}
-    >
-      Discussion
-    </h6>
-  </div>
-
-  {/* MESSAGES */}
-  <div
-    className="chat-messages flex-grow-1 p-2"
-    ref={chatContainerRef}
-    onScroll={handleScroll}
-    style={{
-      overflowY: "auto",
-      overflowX: "hidden",
-      fontSize: "12px",
-      background: "#020617",
-      minHeight: 0
-    }}
-  >
-    {chatMessages.length > 0 ? (
-      chatMessages.map((chat) => (
-        <div key={chat.id} className="mb-1" style={{ wordBreak: "break-word" }}>
-          <strong
+        <div
+          className="chat-panel d-flex flex-column rounded"
+          style={{
+            width: "260px",
+            height: "320px",
+            overflow: "hidden",
+            background: "#0f172a",
+            border: "2px solid #22c55e",
+            boxShadow: "4px 4px 0px #22c55e",
+            fontFamily: "monospace",
+            color: "#e5e7eb",
+          }}
+        >
+          {/* HEADER */}
+          <div
+            className="chat-panel-header p-2"
             style={{
-              color:
-                chat.uid === currentUser?.uid ? "#22c55e" : "#38bdf8",
-              fontSize: "11px"
+              borderBottom: "2px solid #22c55e",
+              background: "#020617",
             }}
           >
-            {chat.uid === currentUser?.uid ? "YOU" : chat.name}:
-          </strong>{" "}
-          <span style={{ color: "#e5e7eb" }}>{chat.text}</span>
+            <p
+              className="mb-0"
+              style={{
+                fontSize: "11px",
+                color: "#22c55e",
+                letterSpacing: "1px",
+              }}
+            >
+              TEAM CHAT
+            </p>
+
+            <h6
+              className="mb-0"
+              style={{
+                color: "#38bdf8",
+                fontWeight: "bold",
+              }}
+            >
+              Discussion
+            </h6>
+          </div>
+
+          {/* MESSAGES */}
+          <div
+            className="chat-messages flex-grow-1 p-2"
+            ref={chatContainerRef}
+            onScroll={handleScroll}
+            style={{
+              overflowY: "auto",
+              overflowX: "hidden",
+              fontSize: "12px",
+              background: "#020617",
+              minHeight: 0,
+            }}
+          >
+            {chatMessages.length > 0 ? (
+              chatMessages.map((chat) => (
+                <div
+                  key={chat.id}
+                  className="mb-1"
+                  style={{ wordBreak: "break-word" }}
+                >
+                  <strong
+                    style={{
+                      color:
+                        chat.uid === currentUser?.uid ? "#22c55e" : "#38bdf8",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {chat.uid === currentUser?.uid ? "YOU" : chat.name}:
+                  </strong>{" "}
+                  <span style={{ color: "#e5e7eb" }}>{chat.text}</span>
+                </div>
+              ))
+            ) : (
+              <p
+                className="mb-0"
+                style={{ color: "#64748b", fontSize: "11px" }}
+              >
+                no messages yet...
+              </p>
+            )}
+          </div>
+
+          {/* INPUT */}
+          <form
+            onSubmit={handleSubmit}
+            className="d-flex gap-1 p-2"
+            style={{
+              borderTop: "2px solid #22c55e",
+              background: "#020617",
+            }}
+          >
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="type..."
+              disabled={!isAlive || isCodeReviewPending}
+              className="form-control form-control-sm"
+              style={{
+                background: "#020617",
+                border: "2px solid #38bdf8",
+                color: "#e5e7eb",
+                fontSize: "12px",
+                minWidth: 0,
+              }}
+            />
+
+            <button
+              type="submit"
+              disabled={
+                isSending || !message.trim() || !isAlive || isCodeReviewPending
+              }
+              className="btn btn-sm"
+              style={{
+                background: "#22c55e",
+                border: "2px solid #16a34a",
+                color: "#020617",
+                fontWeight: "bold",
+                boxShadow: "2px 2px 0px #16a34a",
+                fontSize: "11px",
+              }}
+            >
+              {isSending ? "..." : "SEND"}
+            </button>
+          </form>
         </div>
-      ))
-    ) : (
-      <p
-        className="mb-0"
-        style={{ color: "#64748b", fontSize: "11px" }}
-      >
-        no messages yet...
-      </p>
-    )}
-  </div>
-
-  {/* INPUT */}
-  <form
-    onSubmit={handleSubmit}
-    className="d-flex gap-1 p-2"
-    style={{
-      borderTop: "2px solid #22c55e",
-      background: "#020617"
-    }}
-  >
-    <input
-      type="text"
-      value={message}
-      onChange={(e) => setMessage(e.target.value)}
-      placeholder="type..."
-      disabled={!isAlive || isCodeReviewPending}
-      className="form-control form-control-sm"
-      style={{
-        background: "#020617",
-        border: "2px solid #38bdf8",
-        color: "#e5e7eb",
-        fontSize: "12px",
-        minWidth: 0
-      }}
-    />
-
-    <button
-      type="submit"
-      disabled={
-        isSending || !message.trim() || !isAlive || isCodeReviewPending
-      }
-      className="btn btn-sm"
-      style={{
-        background: "#22c55e",
-        border: "2px solid #16a34a",
-        color: "#020617",
-        fontWeight: "bold",
-        boxShadow: "2px 2px 0px #16a34a",
-        fontSize: "11px"
-      }}
-    >
-      {isSending ? "..." : "SEND"}
-    </button>
-  </form>
-</div>
 
         {!isAlive && <p className="spectator-note">You are spectating.</p>}
       </div>
