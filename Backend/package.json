@@ -15,7 +15,11 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+<<<<<<< HEAD
     "express-rate-limit": "^8.4.1",
+=======
+    "firebase-admin": "^13.8.0",
+>>>>>>> 42b3c74 (your message)
     "nodemon": "^3.1.14",
     "p-queue": "^9.2.0",
     "websocket": "^1.0.35",
